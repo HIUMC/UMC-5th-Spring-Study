@@ -77,15 +77,14 @@
     
     mvc = model view controller
     
-    []
-  (./README/Untitled.png)
+    ![](./README/Untitled.png)
     
 - 스프링 웹개발 기초
     - 정적 컨텐츠 - like 웰컴 페이지, 그냥 파일을 브라우져에 내려줌.
         - 스프링 부트는 자동 제공, static contents라고 검색해보셈
         - resouces에 있는 static 폴더
         
-        [](./README/Untitled201.png)
+        ![](./README/Untitled201.png)
         
     - MVC와 템플릿 엔진 - html을 그냥 주는게 아니라 서버에서 조금 동적으로 바꿔 줌 (이걸 위해서 전에 컨트롤러 이런거 했던거임)
         - Model View Controller 임. 과거엔 뷰와 컨트롤러가 구분 X
@@ -93,7 +92,7 @@
         - 예를 들어, 뷰파일 하나에 다 박으면 나중에 다른 사람은 구분도 못함
         - RequestParam(”name”) 했을때 주소창에 /경로?name=”입력” 으로 입력했음
         
-        ![Untitled](./README/Untitled202.png)
+        ![](./README/Untitled202.png)
         
     - API - 다른 OS, 서버끼리 데이터 흐를때 요즘은 json이란 포맷으로 client한테 보내줌
         - data 로 바로 내린다, html 방식은 소스를 봤을 때 입력을 html 템플릿 포맷으로 갔다면 API는 data 그대로, 그래서 data를 달라는 요청을 할때 많이 씀
@@ -102,7 +101,7 @@
         - @ResponseBody 사용원리
         - 객체가 넘어오면 Json 작동, 그냥 String 객체면 StringConverter
         
-        ![Untitled](./README/Untitled203.png)
+        ![](./README/Untitled203.png)
         
 - 회원 관리 예제 개발
     - 비즈니스 요구사항 정리
@@ -113,9 +112,9 @@
         
         아직 DB가 선정되지 않음
         
-        [](./README/Untitled204.png)
+        ![](./README/Untitled204.png)
         
-        [](./README/Untitled%205.png)
+        ![](./README/Untitled%205.png)
         
     - 회원 도메인과 레포지토리
         1. hello.hellospring 패키지에 domain 패키지를 생성
@@ -214,7 +213,7 @@
     
     각각의 장단점 있음
     
-    [요즘은 생성자 주입이 대세 / 현재 시나리오에선 상황에 따라 레포지토리 바꿔야 해서 설정으로 스프링 빈 해놨음](./README/Untitled206.png)
+    ![요즘은 생성자 주입이 대세 / 현재 시나리오에선 상황에 따라 레포지토리 바꿔야 해서 설정으로 스프링 빈 해놨음](./README/Untitled206.png)
     
     요즘은 생성자 주입이 대세 / 현재 시나리오에선 상황에 따라 레포지토리 바꿔야 해서 설정으로 스프링 빈 해놨음
     
@@ -327,7 +326,7 @@
             1. 이게 스프링이 좋은 이유임 → 스프링이 지원해줌
             2. 어플리케이션을 조립하는 코드만 손대면 나머진 손 안대도 됨
         
-        [](./README/Untitled207.png)
+        ![](./README/Untitled207.png)
         
     - 스프링 통합 테스트
         - 이전의 테스트들은 스프링과 관련 X, 현재는 그럴 수 없으니 테스트를 스프링과 엮어서 함
@@ -518,7 +517,7 @@
     
     Aspect Oriented Programming - 공통 관심사 분리
     
-    [](./README/Untitled%208.png)
+    ![](./README/Untitled%208.png)
     
     - AOP가 필요한 상황
         - 공통관심사항 : 앱의 기능에 전반적으로 공통적으로 사용되는 기능들
@@ -571,4 +570,4 @@
                 
             
 
-[](./README/Untitled%209.png)
+![](./README/Untitled%209.png)
