@@ -1,0 +1,12 @@
+version: '3'
+name: spring
+services:
+  mysql:
+    container_name: springdb
+    image: mysql:8.0.33
+    environment:
+      MYSQL_ROOT_PASSWORD: password
+      MYSQL_DATABASE: spring
+      TZ: Asia/Seoul
+    ports:
+      - "3306:3306"
