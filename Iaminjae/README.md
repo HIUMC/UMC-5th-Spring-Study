@@ -14,7 +14,8 @@
         
     3.  **return “hello”; 를 하는 이유?**
     
-    ![Untitled](https://prod-files-secure.s3.us-west-2.amazonaws.com/f1912130-0409-4e90-a90f-6091ae253e73/ee334fa5-467b-461a-890c-8663089046b5/Untitled.png)
+    ![Untitled (2)](https://github.com/Iaminjae/Test/assets/126381645/5eb37fca-454e-4322-872b-df8b86b0b225)
+
     
      반환형이 string 이기도 하고, view 에 data 를 반환해주기 위해.
     
