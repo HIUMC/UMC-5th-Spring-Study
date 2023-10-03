@@ -32,7 +32,7 @@
     
     **members 리스트는 강의대로 사용해도 좋고, 현 umc 서버 멤버 이름을 사용한다면 더 좋음.**
     
-    ![Untitled](https://prod-files-secure.s3.us-west-2.amazonaws.com/f1912130-0409-4e90-a90f-6091ae253e73/08f473c7-d79d-4fc6-ad09-1f18497ad6cc/Untitled.png)
+    ![Untitled (5)](https://github.com/Iaminjae/Test/assets/126381645/b178f791-c5d0-4a69-9add-c7c5e0acf04f)
     
     </aside>
     
