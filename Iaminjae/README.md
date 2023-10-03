@@ -18,9 +18,9 @@
     
      반환형이 string 이기도 하고, view 에 data 를 반환해주기 위해.
     
-    1. **만약 GetMapping 밑에@ResponseBody를 삽입한다면**  `localhost:8080/hello-string`**에 접속 시 무엇이 출력 될 것인가?**   모르겠다면 진행해보자.  현재로써 뷰리졸버 등등 어려운 용어는 절대 외울 필요 없다.
+    4. **만약 GetMapping 밑에@ResponseBody를 삽입한다면**  `localhost:8080/hello-string`**에 접속 시 무엇이 출력 될 것인가?**   모르겠다면 진행해보자.  현재로써 뷰리졸버 등등 어려운 용어는 절대 외울 필요 없다.
     
-    ![Untitled](https://prod-files-secure.s3.us-west-2.amazonaws.com/f1912130-0409-4e90-a90f-6091ae253e73/0d6bee94-af5e-4b40-a786-76b0f7f91564/Untitled.png)
+     ![Untitled](https://github.com/Iaminjae/Test/assets/126381645/5311446c-6f35-49c4-890e-426e7d12185a)
     
     파라미터로 받은 name 의 값이 hello 뒤에 나오게 된다.
     
