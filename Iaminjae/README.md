@@ -44,7 +44,7 @@
     
     1. @Repository
     
-    ![Untitled](https://prod-files-secure.s3.us-west-2.amazonaws.com/f1912130-0409-4e90-a90f-6091ae253e73/c4cfba2f-5abe-40cb-a5c5-2409e77e5d0a/Untitled.png)
+   ![Untitled](https://prod-files-secure.s3.us-west-2.amazonaws.com/f1912130-0409-4e90-a90f-6091ae253e73/c4cfba2f-5abe-40cb-a5c5-2409e77e5d0a/Untitled.png)
     
     이런 어노테이션을 왜 사용하는지 이해가 안될텐데 그냥 써야된다는 것만 알아둬도 충분하다.  ~~(약간 설명 주자면 음 스프링 실행시에  스프링한테  리포지토리로 이걸 쓸거다  우리가 말해주는 느낌?)~~
     
