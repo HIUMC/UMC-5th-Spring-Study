@@ -3,7 +3,7 @@
 ## 1. 객체 지향 설계와 스프링
 
 - Spring Framework : Java 애플리케이션 개발을 지원하는 오픈소스 프레임워크
-    - 핵심 기술 : 스프링 DI 커네이너, AOP, 이벤트
+    - 핵심 기술 : 스프링 DI 컨네이너, AOP, 이벤트
     - 웹 기술 : 스프링 MVC, 스프링 WebFlux
     - DB 접근 기술 : 트랜잭션, JDBC, ROM 지원, XML 지원
     
