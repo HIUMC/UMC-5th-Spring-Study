@@ -49,9 +49,7 @@
         
         부모 클래스로부터 상속받은 메소드를 자식 클래스에서 재정의하여 사용
         
-    
-    ![MemberService가 바라보는걸 MemoryMemeberRepository 또는 JdbcMemberRepository로 변경 가능](%E1%84%89%E1%85%B3%E1%84%91%E1%85%B3%E1%84%85%E1%85%B5%E1%86%BC%20%E1%84%92%E1%85%A2%E1%86%A8%E1%84%89%E1%85%B5%E1%86%B7%20%E1%84%8B%E1%85%AF%E1%86%AB%E1%84%85%E1%85%B5%20d2ff98c424b24598935129a0fd9a818d/Untitled%201.png)
-    
+     
     MemberService가 바라보는걸 MemoryMemeberRepository 또는 JdbcMemberRepository로 변경 가능
     
     ⇒ 다형성으로 인터페이스를 구현한 객체를 실행 시점에 유연하게 변경
