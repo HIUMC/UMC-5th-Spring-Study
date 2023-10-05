@@ -53,7 +53,7 @@ public class MemoryMemberRepositoryTest {
         Member member2 = new Member();
         member2.setName("spring2");
         repository.save(member2);
-
+        git push -u origin master
         List<Member> result = repository.findAll();
         assertThat(result.size()).isEqualTo(2);
     }
