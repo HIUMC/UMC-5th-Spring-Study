@@ -1,12 +1,14 @@
 package hello.core.member;
 
+import org.springframework.stereotype.Component;
+
 import java.util.HashMap;
 import java.util.Map;
 
+@Component //name = memoryMemberRepository
 public class MemoryMemberRepository implements MemberRepository{
 
-    private static Map<Long, Member> store= new HashMap<>(); // 저장소이니 Map 필요, 실무에서는 동시성 이슈 때문에 Concurrent HashMap을 써 주는 것이 좋음.
-
+    private static Map<Long, Member> store= new HashMap<>();
     @Override
     public void save(Member member) {
         store.put(member.getId(), member);

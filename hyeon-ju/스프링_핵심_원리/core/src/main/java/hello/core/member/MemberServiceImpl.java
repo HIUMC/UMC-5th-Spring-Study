@@ -1,12 +1,14 @@
 package hello.core.member;
 
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Component;
+
+@Component
 public class MemberServiceImpl implements MemberService {
-
-    //private final MemberRepository memberRepository = new MemoryMemberRepository(); //구현 객체 선택해준다. 인터페이스만 있으면 Null pointer exception 터짐
-   // 이 부분에서 MemberServiceImp은 인터페이스와 구현체 모두에 의존 -> DIP 위반
-
     private final MemberRepository memberRepository;
 
+    @Autowired //의존관계 자동 주입 (의존관계 직접 명시되어 있지 않으므로)
+    //ac.getBean(MemberRepository.class) 라는 동작을 한다고 보면 된다
     public MemberServiceImpl(MemberRepository memberRepository) {
         this.memberRepository = memberRepository;
     }
@@ -14,11 +16,16 @@ public class MemberServiceImpl implements MemberService {
 
     @Override
     public void join(Member member) {
-        memberRepository.save(member); //join에서 save를 호출하면 다형성에 의해 MemberRepository인터페이스가 아니라 MemoryMemberRepository에 있는 save가 호출 됨(오버라이드)
+        memberRepository.save(member);
     }
 
     @Override
     public Member findMember(Long memberId) {
         return memberRepository.findById(memberId); //
+    }
+
+    //테스트 용도
+    public MemberRepository getMemberRepository() {
+        return memberRepository;
     }
 }
