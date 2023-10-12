@@ -15,23 +15,41 @@ import org.springframework.context.annotation.Configuration;
 @Configuration
 public class AppConfig {
 
+    // @Bean memberService -> new MemoryMemberRepository()
+    // @Bean orderService -> new MemoryMemberRepository()
+    // -> 같은 클래스가 두번 생성
+
+    //예상
+//    call AppConfig.memberService
+//    call AppConfig.memberRepository
+//    call AppConfig.memberRepository
+//    call AppConfig.orderService
+//    call AppConfig.memberRepository
+
+    //실제
+//    call AppConfig.memberService
+//    call AppConfig.memberRepository
+//    call AppConfig.orderService
     @Bean
-    public MemberService memberService(){
+    public MemberService memberService() {
+        System.out.println("call AppConfig.memberService");
         return new MemberServiceImpl(memberRepository());
     }
 
     @Bean
     public MemberRepository memberRepository() {
+        System.out.println("call AppConfig.memberRepository");
         return new MemoryMemberRepository();
     }
 
     @Bean
-    public OrderService orderService(){
+    public OrderService orderService() {
+        System.out.println("call AppConfig.orderService");
         return new OrderServiceImpl(memberRepository(), discountPolicy());
     }
 
     @Bean
-    public DiscountPolicy discountPolicy(){
+    public DiscountPolicy discountPolicy() {
 //        return new FixDiscountPolicy();
         return new RateDiscountPolicy();
     }
