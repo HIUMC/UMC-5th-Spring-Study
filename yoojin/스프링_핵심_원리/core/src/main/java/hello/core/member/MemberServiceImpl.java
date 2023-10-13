@@ -2,6 +2,7 @@ package hello.core.member;
 
 public class MemberServiceImpl implements MemberService{
 
+    //멤버 리포지토리 필요
     private final MemberRepository memberRepository;
 
     public MemberServiceImpl(MemberRepository memberRepository) {
@@ -11,6 +12,7 @@ public class MemberServiceImpl implements MemberService{
     @Override
     public void join(Member member) {
         memberRepository.save(member);
+        
     }
 
     @Override
