@@ -95,7 +95,7 @@
 
 ➡️ 클라이언트에 영향을 주지 않고 새로운 기능 제공 가능
 
-![Untitled](img/로미오와 줄리엣 공연.png)
+![Untitled](img/로미오와_줄리엣_공연.png)
 
 ➡️ 배우는 대체 가능
 
@@ -125,9 +125,9 @@
 - 다형성으로 인터페이스를 구현한 객체를 실행 시점에 유연하게 변경 가능
 - 클래스 상속 관계도 다형성, 오버라이딩 적용 가능
 
-![Untitled](img/자바 언어의 다형성.png)
+![Untitled](img/자바_언어의_다형성.png)
 
-![Untitled](img/클라이언트는 MemberRepository 의존.png)
+![Untitled](img/클라이언트는_MemberRepository_의존.png)
 
 ➡️ 클라이언트는 MemberRepository 의존
 
@@ -143,9 +143,9 @@ public class MemberService {
 }
 ```
 
-![Untitled](img/클라이언트는 MemberRepository 의존2.png)
+![Untitled](img/클라이언트는_MemberRepository_의존2.png)
 
-![Untitled](img/클라이언트는 MemberRepository 의존 전체관계.png)
+![Untitled](img/클라이언트는_MemberRepository_의존_전체관계.png)
 
 ## 다형성의 본질
 
@@ -318,7 +318,7 @@ public class MemberService {
     - Java : 17
   - Dependencies : 선택 안함 → core library 만 가지고 간단하게 생성됨
 
-![Untitled](img/스프링 스타터.png)
+![Untitled](img/스프링_스타터.png)
 
 - 프로젝트 열기 : build.gradle → open
 - build.gradle setting
@@ -353,7 +353,7 @@ tasks.named('test') {
 
 ## 동작 확인하기(기본 메인 클래스 실행) : src/main/java/hello.core 의 CoreApplication Run 해보기
 
-![Untitled](img/스프링 스타터 동작 확인.png)
+![Untitled](img/스프링_스타터_동작_확인.png)
 
 Gradle 대신 IntelliJ로 자바 직접 실행하기 → 실행 속도가 더 빠르다
 
@@ -361,7 +361,7 @@ Gradle 대신 IntelliJ로 자바 직접 실행하기 → 실행 속도가 더 �
   - Build and run using : Gradle → IntelliJ IDEA 변경
   - Run tests using : Gradle → IntelliJ IDEA 변경
 
-![Untitled](img/Gradle 대신 IntelliJ.png)
+![Untitled](img/Gradle_대신_IntelliJ.png)
 
 <!------------------------------------------------------------>
 <!------------------------------------------------------------>
@@ -397,11 +397,11 @@ Gradle 대신 IntelliJ로 자바 직접 실행하기 → 실행 속도가 더 �
 
 - 회원 도메인 협력 관계
 
-![Untitled](img/회원 도메인 협력 관계.png)
+![Untitled](img/회원_도메인_협력_관계.png)
 
 - 회원 클래스 다이어그램
 
-![Untitled](img/회원 클래스 다이어그램.png)
+![Untitled](img/회원_클래스_다이어그램.png)
 
 ➡️ 인터페이스 : MemberService
 
@@ -411,7 +411,7 @@ Gradle 대신 IntelliJ로 자바 직접 실행하기 → 실행 속도가 더 �
 
 - 회원 객체 다이어그램 (객체 간 메모리 참조)
 
-![Untitled](img/회원 객체 다이어그램.png)
+![Untitled](img/회원_객체_다이어그램.png)
 
 MemberServiceImpl = 회원 서비스
 
@@ -423,7 +423,7 @@ MemberServiceImpl = 회원 서비스
 
 - 만들 것
 
-  ![Untitled.png](img/회원 클래스 다이어그램.png)
+  ![Untitled.png](img/회원_클래스_다이어그램.png)
 
 
 1. member 패키지 생성
@@ -615,7 +615,7 @@ public class MemberServiceTest {
 }
 ```
 
-![Untitled](img/회원 도메인 실행 테스트.png)
+![Untitled](img/회원_도메인_실행_테스트.png)
 
 → 테스트 성공 !
 
@@ -636,7 +636,7 @@ public class MemberServiceTest {
 
 - 주문 도메인 협력, 역할, 책임
 
-![Untitled](img/주문 도메인.png)
+![Untitled](img/주문_도메인.png)
 
 1. **주문 생성** : 클라이언트는 주문 서비스에 주문 생성 요청
 2. **회원 조회** : 주문 서비스는 회원 저장소에서 회원을 조회 (할인을 위해 회원 등급 필요)
@@ -646,7 +646,7 @@ public class MemberServiceTest {
 
 - 주문 도메인 전체
 
-![Untitled](img/주문 도메인 전체.png)
+![Untitled](img/주문_도메인_전체.png)
 
 ➡️ **역할과 구현을 분리**해서 자유롭게 구현 객체를 조립할 수 있도록 설계
 
@@ -654,11 +654,11 @@ public class MemberServiceTest {
 
 - 주문 도메인 클래스 다이어그램
 
-![Untitled](img/주문 도메인 클래스 다이어그램.png)
+![Untitled](img/주문_도메인_클래스_다이어그램.png)
 
 - 주문 도메인 객체 다이어그램1
 
-![Untitled](img/주문 도메인 객체 다이어그램1.png)
+![Untitled](img/주문_도메인_객체_다이어그램1.png)
 
 ➡️ 회원을 메모리에서 조회하고, 정액 할인 정책(고정 금액)을 지원해도 주문 서비스를 변경하지 않아도 됨
 
@@ -666,7 +666,7 @@ public class MemberServiceTest {
 
 - 주문 도메인 객체 다이어그램2
 
-![Untitled](img/주문 도메인 객체 다이어그램2.png)
+![Untitled](img/주문_도메인_객체_다이어그램2.png)
 
 ➡️ 회원을 메모리가 아닌 실제 DB 에서 조회하고, 정률 할인 정책(주문 금액에 따라 % 할인)을 지원해도 주문 서비스를 변경하지 않아도 됨
 
@@ -1017,19 +1017,19 @@ public class OrderServiceImpl implements OrderService{
 
 - 기대했던 의존 관계
 
-![Untitled](img/기대했던 의존 관계.png)
+![Untitled](img/기대했던_의존_관계.png)
 
 → DiscountPolicy 인터페이스에만 의존하기
 
 - 실제 의존 관계
 
-![Untitled](img/실제 의존 관계.png)
+![Untitled](img/실제_의존_관계.png)
 
 → 클라이언트 OrderServiceImpl 은 DiscountPolicy 인터페이스 뿐만 아니라 FixDiscountPolicy 인 구체 클래스도 함께 의존 (**DIP 위반**)
 
 - 정책 변경 시
 
-![Untitled](img/정책 변경 시 OCP 위반.png)
+![Untitled](img/정책_변경_시_OCP_위반.png)
 
 → FixDiscountPolicy 를 RateDiscountPolicy 로 변경하는 순간 OrderServiceImpl 의 소스 코드가 변경됨 (**OCP 위반**)
 
@@ -1125,7 +1125,7 @@ public class MemberServiceImpl implements MemberService{
 
 - 클래스 다이어그램
 
-![Untitled](img/AppConfig 클래스 다이어그램.png)
+![Untitled](img/AppConfig_클래스_다이어그램.png)
 
 → 객체의 생성과 연결은 AppConfig 담당
 
@@ -1135,7 +1135,7 @@ public class MemberServiceImpl implements MemberService{
 
 - 회원 객체 인스턴스 다이어그램
 
-![Untitled](img/AppConfig 회원 객체 다이어그램.png)
+![Untitled](img/AppConfig_회원_객체_다이어그램.png)
 
 → AppConfig 객체는 memoryMemberRepository 객체를 생성하고, 그 참조값을 memberServiceImpl 을 생성하면서 생성자로 전달
 
@@ -1427,7 +1427,7 @@ public class AppConfig {
   - 클래스가 사용하는 import 코드만 보고 의존관계 쉽게 파악 가능 (애플리케이션을 실행하지 않아도 분석 가능)
   - OrderServiceImpl -(의존)→ MemberRepository, DiscountPolicy
 
-![Untitled](img/정적인 클래스 의존관계.png)
+![Untitled](img/정적인_클래스_의존관계.png)
 
 - 동적인 객체 인스턴스 의존 관계
   - 애플리케이션 실행 시점에서 실제 생성된 객체 인스턴스의 참조가 연결된 의존 관계
@@ -1437,7 +1437,7 @@ public class AppConfig {
     - 클라이언트 코드 변경 X → 클라이언트가 호출하는 대상의 타입 인스턴스 변경
     - ⭐ 정적인 클래스 의존 관계 변경 X →동적인 객체 인스턴스 의존 관계 쉽게 변경
 
-![Untitled](img/동적인 객체 의존관계.png)
+![Untitled](img/동적인_객체_의존관계.png)
 
 ### IoC 컨테이너, DI 컨테이너
 
@@ -1497,7 +1497,7 @@ public class MemberApp {
 
 - Run
 
-![Untitled](img/스프링 전환.png)
+![Untitled](img/스프링_전환.png)
 
 3. OrderApp 코드 변경하기
 
@@ -1524,7 +1524,7 @@ public class OrderApp {
 
 - Run
 
-![Untitled](img/스프링 전환2.png)
+![Untitled](img/스프링_전환2.png)
 
 ### 스프링 컨테이너
 
@@ -1540,3 +1540,1537 @@ public class OrderApp {
 
 # 🐾🐾스프링 컨테이너와 스프링 빈🐾🐾
 
+# 스프링 컨테이너 생성
+
+☑️ 컨테이너 : 사용하는 객체들을 담고 있음
+
+- 스프링 컨테이너가 생성되는 과정
+
+```java
+ApplicationContext applicationContext = new AnnotationConfigApplicationContext(AppConfig.class);
+```
+
+→ ApplicationContext : 인터페이스, 스프링 컨테이너
+
+→ 스프링 컨테이너 만드는 방법 : XML 기반, 애노테이션 기반 자바 설정 클래스
+
+→ AppConfig 사용했던 방식 : 애노테이션 기반 자바 설정 클래스
+
+- 자바 설정 클래스 기반 스프링 컨테이너(ApplicationContext) 만들기
+  - 구현체 : new AnnotationConfigApplicationContext(AppConfig.class);
+
+> 참고 : 정확히는 스프링 컨테이너를 부를 때 BeanFactory, ApplicationContext 로 구분해서 이야기한다. BeanFactory 를 직접 사용하는 경우는 거의 없으며, 일반적으로 ApplicationContext 를 스프링 컨테이너라 한다.
+>
+
+## 스프링 컨테이너 생성 과정
+
+### 1. 스프링 컨테이너 생성
+
+![Untitled](img/스프링_컨테이너_생성.png)
+
+- 스프링 컨테이너 생성 시 구성 정보 지정 : AppConfig.class
+
+### 2. 스프링 빈 등록
+
+![Untitled](img/스프링_빈_등록.png)
+
+- 스프링 컨테이너는 파라미터로 넘어온 설정 클래스 정보를 이용해 스프링 빈 등록
+- 빈 이름 = 메서드 이름
+- 빈 이름 직접 부여 가능 (ex. @Bean(name=”memberService2”))
+
+> 주의 : 빈 이름은 항상 다른 이름을 부여해야 한다. 같은 이름 부여 시, 다른 빈이 무시되거나, 기존 빈을 덮어버리거나, 설정에 따라 오류가 발생한다.
+>
+
+### 3. 스프링 빈 의존관계 설정 - 준비
+
+![Untitled](img/스프링_빈_의존관계_준비.png)
+
+### 4. 스프링 빈 의존관계 설정 - 완료
+
+![Untitled](img/스프링_빈_의존관계_완료.png)
+
+- 스프링 컨테이너는 설정 정보를 참고하여 의존관계 주입 (DI)
+
+> 참고 : 스프링은 빈을 생성하고, 의존관계를 주입하는 단계가 나누어져 있다. 그런데 이렇게 자바 코드로 스프링 빈을 등록하면 생성자를 호출하면서 의존관계 주입도 한 번에 처리된다. (이해를 위한 설계)
+>
+
+> 정리 : 스프링 컨테이너를 생성하고, 설정(구성) 정보를 참고해 스프링 빈을 등록하고, 의존관계를 설정했다.
+>
+
+<!------------------------------------------------------------>
+<!------------------------------------------------------------>
+<!------------------------------------------------------------>
+
+# 컨테이너에 등록된 모든 빈 조회
+
+- 스프링 컨테이너에 실제로 스프링 빈이 등록되었는지 확인하기
+
+1. test/java/hello.core 에 beanfind 이름의 Package 생성
+2. 만든 beanfind 패키지에 ApplicationContextInfoTest 이름의 Class 생성
+
+### 모든 빈 출력하기
+
+➡️ 실행 시 스프링에 등록된 모든 빈 정보 출력 가능
+
+➡️ ac.getBeanDefinitionNames() : 스프링에 등록된 모든 빈 이름 조회
+
+➡️ ac.getBean() : 빈 이름으로 빈 객체(인스턴스) 조회
+
+```java
+package hello.core.beanfind;
+
+import hello.core.AppConfig;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+import org.springframework.context.annotation.AnnotationConfigApplicationContext;
+
+public class ApplicationContextInfoTest {
+
+    AnnotationConfigApplicationContext ac = new AnnotationConfigApplicationContext(AppConfig.class);
+
+    @Test
+    @DisplayName("모든 빈 출력하기")
+    void findAllBean() {
+        String[] beanDefinitionNames = ac.getBeanDefinitionNames();
+        // iter : 리스트/배열 for문 자동 생성
+        for (String beanDefinitionName : beanDefinitionNames) {
+            Object bean = ac.getBean(beanDefinitionName);
+            System.out.println("name = " + beanDefinitionName + " object = " + bean);
+        }
+    }
+}
+```
+
+- 출력 결과
+
+![Untitled](img/모든_빈_출력하기.png)
+
+### 직접 만든 애플리케이션 빈만 출력하기
+
+➡️ 내가 등록한 빈만 출력 (스프링이 내부에서 사용하는 빈을 제외)
+
+➡️ getRole() : 스프링이 내부에서 사용하는 빈 구분 (ROLE_APPLICATION/ROLE_INFRASTRUCTURE)
+
+```java
+...
+public class ApplicationContextInfoTest {
+
+    ...
+
+    @Test
+    @DisplayName("애플리케이션 빈 출력하기")
+    void findApplicationBean() {
+        String[] beanDefinitionNames = ac.getBeanDefinitionNames();
+        for (String beanDefinitionName : beanDefinitionNames) {
+            // BeanDefinition : 빈에 대한 메타데이터
+            BeanDefinition beanDefinition = ac.getBeanDefinition(beanDefinitionName);
+
+            // ROLE_APPLICATION : 내가 등록한 애플리케이션 or 외부 라이브러리
+            // ROLE_INFRASTRUCTURE : 스프링이 내부에서 사용하는 빈
+            if (beanDefinition.getRole() == beanDefinition.ROLE_APPLICATION) {
+                Object bean = ac.getBean(beanDefinitionName);
+                System.out.println("name = " + beanDefinitionName + " object = " + bean);
+            }
+        }
+    }
+}
+```
+
+- 출력 결과
+
+![Untitled](img/애플리케이션_빈_출력하기.png)
+
+<!------------------------------------------------------------>
+<!------------------------------------------------------------>
+<!------------------------------------------------------------>
+
+# 스프링 빈 조회 - 기본
+
+- 스프링 컨테이너에서 스프링 빈을 찾는 가장 기본적인 조회 방법
+
+☑️ ac.getBean(빈이름, 타입)
+
+☑️ ac.getBean(타입)
+
+💡 조회 대상 스프링 빈이 없으면 예외 발생
+
+- ‘NoSuchBeanDefinitionException : No bean named ‘xxxx’ available’
+
+1. test/java/hello.core/beanfind 패키지에 ApplicationContextBasicFindTest 이름의 Class 생성
+
+```java
+package hello.core.beanfind;
+
+import hello.core.AppConfig;
+import hello.core.member.MemberService;
+import hello.core.member.MemberServiceImpl;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.NoSuchBeanDefinitionException;
+import org.springframework.context.annotation.AnnotationConfigApplicationContext;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+
+public class ApplicationContextBasicFindTest {
+
+    // Ctrl + E (Window) : 이전 코드로 바로가기
+    // Command + E (Linux)
+    AnnotationConfigApplicationContext ac = new AnnotationConfigApplicationContext(AppConfig.class);
+
+    @Test
+    @DisplayName("빈 이름으로 조회")
+    void findBeanByName() {
+        MemberService memberService = ac.getBean("memberService", MemberService.class);
+
+        // 검증 - Assertions (org.junit)
+        assertThat(memberService).isInstanceOf(MemberServiceImpl.class);
+    }
+
+    @Test
+    @DisplayName("이름 없이 타입으로만 조회")
+    void findBeanByType() {
+        MemberService memberService = ac.getBean(MemberService.class);
+        assertThat(memberService).isInstanceOf(MemberServiceImpl.class);
+    }
+
+    @Test
+    @DisplayName("구체 타입으로 조회")
+    void findBeanByName2() {
+        // 인터페이스의 구현체로 직접 조회 - 좋지 않은 방법
+        MemberService memberService = ac.getBean("memberService", MemberServiceImpl.class);
+        assertThat(memberService).isInstanceOf(MemberServiceImpl.class);
+    }
+
+    // 실패 테스트 만들기
+    @Test
+    @DisplayName("빈 이름으로 조회X")
+    void findBeanByNameX() {
+        // ac.getBean("xxxx", MemberService.class);
+        assertThrows(NoSuchBeanDefinitionException.class,
+                () -> ac.getBean("xxxx", MemberService.class));
+    }
+}
+```
+
+- 테스트 결과
+
+![Untitled](img/스프링_빈_조회_기본.png)
+
+→ 성공 !
+
+<!------------------------------------------------------------>
+<!------------------------------------------------------------>
+<!------------------------------------------------------------>
+
+# 스프링 빈 조회 - 동일한 타입이 둘 이상
+
+- 타입으로 조회 시 같은 타입의 스프링 빈이 둘 이상이면 오류 발생 → 빈 이름 지정
+- ac.getBeansOfType() : 해당 타입의 모든 빈 조회 가능
+
+1. test/java/hello.core/beanfind 패키지에 ApplicationContextSameBeanFindTest 이름의 Class 생성
+
+```java
+package hello.core.beanfind;
+
+import hello.core.member.MemberRepository;
+import hello.core.member.MemoryMemberRepository;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.NoUniqueBeanDefinitionException;
+import org.springframework.context.annotation.AnnotationConfigApplicationContext;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+
+import java.util.Map;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+
+public class ApplicationContextSameBeanFindTest {
+
+    AnnotationConfigApplicationContext ac = new AnnotationConfigApplicationContext(SameBeanConfig.class);
+
+    @Test
+    @DisplayName("타입으로 조회 시 같은 타입이 둘 이상이면 중복 오류 발생")
+    void findBeanByTypeDuplicate() {
+        assertThrows(NoUniqueBeanDefinitionException.class,
+                () -> ac.getBean(MemberRepository.class));
+    }
+
+    @Test
+    @DisplayName("타입으로 조회 시 같은 타입이 둘 이상이면 빈 이름을 지정")
+    void findBeanByName() {
+        MemberRepository memberRepository = ac.getBean("memberRepository1", MemberRepository.class);
+        assertThat(memberRepository).isInstanceOf(MemberRepository.class);
+    }
+
+    @Test
+    @DisplayName("특정 타입 모두 조회")
+    void findAllBeanByType() {
+        Map<String, MemberRepository> beansOfType = ac.getBeansOfType(MemberRepository.class);
+        for (String key : beansOfType.keySet()) {
+            System.out.println("key = " + key + " value = " + beansOfType.get(key));
+        }
+        System.out.println("beansOfType = " + beansOfType);
+        assertThat(beansOfType.size()).isEqualTo(2);
+    }
+
+    // static class 선언 : ApplicationContextSameBeanFindTest 안에서만 사용할 클래스라는 의미
+    @Configuration
+    static class SameBeanConfig {
+
+        @Bean
+        public MemberRepository memberRepository1() {
+            return new MemoryMemberRepository();
+        }
+
+        @Bean
+        public MemberRepository memberRepository2() {
+            return new MemoryMemberRepository();
+        }
+
+    }
+}
+```
+
+- 테스트 결과
+
+![Untitled](img/ApplicationContextSameBeanFindTest.png)
+
+→ 성공 !
+
+<!------------------------------------------------------------>
+<!------------------------------------------------------------>
+<!------------------------------------------------------------>
+
+# ⭐⭐⭐ 스프링 빈 조회 - 상속관계
+
+- 부모 타입 조회 시, 자식 타입도 함께 조회됨
+- 모든 자바 객체의 최고 부모인 Object 타입으로 조회 시, 모든 스프링 빈 조회 가능
+
+1. test/java/hello.core/beanfind 패키지에 ApplicationContextExtendsFindTest 이름의 Class 생성
+
+```java
+package hello.core.beanfind;
+
+import hello.core.discount.DiscountPolicy;
+import hello.core.discount.FixDiscountPolicy;
+import hello.core.discount.RateDiscountPolicy;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.NoUniqueBeanDefinitionException;
+import org.springframework.context.annotation.AnnotationConfigApplicationContext;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+
+import java.util.Map;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+
+public class ApplicationContextExtendsFindTest {
+
+    AnnotationConfigApplicationContext ac = new AnnotationConfigApplicationContext(TestConfig.class);
+
+    @Test
+    @DisplayName("부모 타입으로 조회 시 자식이 둘 이상 있으면, 중복 오류 발생")
+    void findBeanByParentTypeDuplicate() {
+        assertThrows(NoUniqueBeanDefinitionException.class,
+                () -> ac.getBean(DiscountPolicy.class));
+    }
+
+    @Test
+    @DisplayName("부모 타입으로 조회 시 자식이 둘 이상 있으면, 빈 이름 지정")
+    void findBeanByParentTypeBeanName() {
+        DiscountPolicy rateDiscountPolicy = ac.getBean("rateDiscountPolicy", DiscountPolicy.class);
+        assertThat(rateDiscountPolicy).isInstanceOf(RateDiscountPolicy.class);
+    }
+
+    @Test
+    @DisplayName("특정 하위 타입으로 조회")
+    void findBeanBySubType() {
+        RateDiscountPolicy bean = ac.getBean(RateDiscountPolicy.class);
+        assertThat(bean).isInstanceOf(RateDiscountPolicy.class);
+    }
+
+    @Test
+    @DisplayName("부모 타입으로 모두 조회")
+    void findAllBeanByParentType() {
+        Map<String, DiscountPolicy> beansOfType = ac.getBeansOfType(DiscountPolicy.class);
+        assertThat(beansOfType.size()).isEqualTo(2);
+        for (String key : beansOfType.keySet()) {
+            System.out.println("key = " + key + "value = " + beansOfType.get(key));
+        }
+    }
+
+    @Test
+    @DisplayName("부모 타입으로 모두 조회 - Object")
+    void findAllBeanByObjectType() {
+        Map<String, Object> beansOfType = ac.getBeansOfType(Object.class);
+        for (String key : beansOfType.keySet()) {
+            System.out.println("key = " + key + "value = " + beansOfType.get(key));
+        }
+    }
+
+    @Configuration
+    static class TestConfig {
+        @Bean
+        public DiscountPolicy rateDiscountPolicy() {
+            return new RateDiscountPolicy();
+        }
+
+        @Bean
+        public DiscountPolicy fixDiscountPolicy() {
+            return new FixDiscountPolicy();
+        }
+    }
+}
+```
+
+- 테스트 결과
+
+![Untitled](img/ApplicationContextExtendsFindTest.png)
+
+→ 성공 !
+
+<!------------------------------------------------------------>
+<!------------------------------------------------------------>
+<!------------------------------------------------------------>
+
+# BeanFactory 와 ApplicationContext
+
+![Untitled](img/BeanFactory&ApplicationContext.png)
+
+## BeanFactory
+
+- 스프링 컨테이너의 최상위 인터페이스
+- 스프링 빈을 관리하고 조회하는 역할
+- getBean() 제공
+- 지금까지 사용했던 대부분의 기능은 BeanFactory 가 제공하는 기능
+
+## ApplicationContext
+
+- BeanFactory 의 기능을 모두 상속받아 제공 (BeanFactory 기능 + ɑ)
+
+### ApplicationContext 가 제공하는 부가기능
+
+![Untitled](img/ApplicationContext.png)
+
+- **MessageSource** : 메시지소스를 활용한 국제화 기능 (ex. 한국에서 들어오면 한국어, 영어권에서 들어오면 영어로 출력)
+- **EnvironmentCapable** : 환경변수 (로컬, 개발, 운영 등을 구분해서 처리)
+- **ApplicationEventPublisher** : 애플리케이션 이벤트 (이벤트 발행&구독 모델 편리하게 지원)
+- **ResourceLoader** : 편리한 리소스 조회 (파일, 클래스패스, 외부 등에서 리소스를 편리하게 조회)
+
+> **정리**
+> - ApplicationContext 는 BeanFactory 의 기능을 상속받는다
+> - ApplicationContext 는 빈 관리 기능 + 편리한 부가 기능을 제공한다
+> - BeanFactory 를 직접 사용할 일은 거의 없다 (부가 기능이 포함된 ApplicationContext 사용)
+> - BeanFactory 나 ApplicationContext 를 스프링 컨테이너라 한다
+>
+
+<!------------------------------------------------------------>
+<!------------------------------------------------------------>
+<!------------------------------------------------------------>
+
+# 다양한 설정 형식 지원 - 자바 코드, XML
+
+- 스프링 컨테이너는 다양한 형식의 설정 정보를 받아들일 수 있게 유연하게 설계되어 있음
+  - 자바 코드, XML, Groovy …
+
+![Untitled](img/다양한_설정_형식_지원.png)
+
+## 애노테이션 기반 자바 코드 설정 사용
+
+- 지금까지 했던 것
+- new AnnotationConfigApplicationContext(AppConfig.class)
+- AnnotationConfigApplicationContext 클래스를 사용하여 자바 코드로 된 설정 정보를 넘김
+
+## XML 설정 사용
+
+- 최근에는 잘 사용하지 않음 (스프링 부트 영향)
+- 컴파일 없이 빈 설정 정보를 변경할 수 있는 장점
+- GenericXmlApplicationContext 클래스를 사용하여 xml 설정 정보를 넘김
+
+1. main/resources 에 appConfig.xml 파일 생성
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans.xsd">
+
+    <bean id="memberService" class="hello.core.member.MemberServiceImpl">
+        <constructor-arg name="memberRepository" ref="memberRepository" />
+    </bean>
+
+    <bean id="memberRepository" class="hello.core.member.MemoryMemberRepository" />
+
+    <bean id="orderService" class="hello.core.order.OrderServiceImpl">
+        <constructor-arg name="memberRepository" ref="memberRepository" />
+        <constructor-arg name="discountPolicy" ref="discountPolicy" />
+    </bean>
+
+    <bean id="discountPolicy" class="hello.core.discount.RateDiscountPolicy" />
+
+</beans>
+```
+
+➡️ xml 기반의 appConfig.xml 스프링 설정 정보 ≒ 자바 코드로 된 [AppConfig.java](http://AppConfig.java) 설정 정보
+
+2. test/java/hello.core 에 xml 이름의 Package 생성
+3. 만든 xml 패키지에 XmlAppContext 이름의 Class 생성
+
+```java
+package hello.core.xml;
+
+import hello.core.member.MemberService;
+import org.junit.jupiter.api.Test;
+import org.springframework.context.ApplicationContext;
+import org.springframework.context.support.GenericXmlApplicationContext;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
+public class XmlAppContext {
+
+    @Test
+    void xmlAppContext() {
+        ApplicationContext ac = new GenericXmlApplicationContext("appConfig.xml");
+        MemberService memberService = ac.getBean("memberService", MemberService.class);
+        assertThat(memberService).isInstanceOf(MemberService.class);
+    }
+}
+```
+
+- 테스트 결과
+
+![Untitled](img/XmlAppContext.png)
+
+→ 성공 !
+
+<!------------------------------------------------------------>
+<!------------------------------------------------------------>
+<!------------------------------------------------------------>
+
+# 스프링 빈 설정 메타 정보 - BeanDefinition
+
+- Bean 정보에 대한 추상화 (Bean 설정 메타 정보) : BeanDefinition
+  - @Bean, <bean> 당 각각 하나씩 메타 정보가 생성됨
+- 스프링 컨테이너는 메타 정보를 기반으로 스프링 빈 생성
+
+![Untitled](img/BeanDefinition.png)
+
+- 코드 레벨로 확장
+
+![Untitled](img/BeanDefinition코드레벨.png)
+
+➡️ AnnotationConfigApplicationContext 는 AnnotatedBeanDefinitionReder 를 사용해 AppConfig.class 를 읽고 BeanDefinition 생성
+
+➡️ GenericXmlApplicationContext 는 XmlBeanDefinitionReader 를 사용해 appConfig.xml 를 읽고 BeanDefinition 생성
+
+➡️ 새로운 형식의 설정 정보가 추가될 시, ~BeanDefinitionReader 를 만들어서 BeanDefinition 생성
+
+## BeanDefinition 살펴보기
+
+1. test/java/hellocore 에 beandefinition 이름의 Package 생성
+2. 만든 beandefinition 패키지에 BeanDefinitionTest 이름의 Class 생성
+
+```java
+package hello.core.beandefinition;
+
+import hello.core.AppConfig;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.config.BeanDefinition;
+import org.springframework.context.annotation.AnnotationConfigApplicationContext;
+
+public class BeanDefinitionTest {
+
+   AnnotationConfigApplicationContext ac = new AnnotationConfigApplicationContext(AppConfig.class);
+
+   @Test
+   @DisplayName("빈 설정 메타 정보 확인")
+   void findApplicationBean() {
+       String[] beanDefinitionNames = ac.getBeanDefinitionNames();
+       for (String beanDefinitionName : beanDefinitionNames) {
+           BeanDefinition beanDefinition = ac.getBeanDefinition(beanDefinitionName);
+
+           if (beanDefinition.getRole() == BeanDefinition.ROLE_APPLICATION) {
+               System.out.println("beanDefinitionName = " + beanDefinitionName +
+                       " beanDefinition = " + beanDefinition);
+           }
+       }
+   }
+}
+```
+
+- 테스트 결과
+
+![Untitled](img/BeanDefinitionTest.png)
+
+→ 성공 !
+
+> **정리**
+> - BeanDefinition 을 직접 생성해 스프링 컨테이너에 등록할 수 있다. 하지만 실무에서 직접 정의하거나 사용할 일은 거의 없다.
+> - BeanDefinition 에 대해 너무 깊이 있게 이해하기 보다, 스프링이 다양한 형태의 설정 정보를 BeanDefinition 으로 추상화하여 사용한다는 것 정도만 이해하면 된다.
+>
+
+<!------------------------------------------------------------>
+<!------------------------------------------------------------>
+<!------------------------------------------------------------>
+
+# 🐾🐾싱글톤 컨테이너🐾🐾
+
+# 웹 애플리케이션과 싱글톤
+
+- 스프링 : 기업용 온라인 서비스 기술을 지원하기 위해 탄생
+- 대부분의 스프링 애플리케이션 → 웹 애플리케이션 (웹이 아닌 애플리케이션도 개발 가능)
+- 웹 애플리케이션 : 보통 여러 고객이 동시에 요청
+
+![동시 요청](img/동시요청.png)
+
+동시 요청
+
+1. test/java/hello.core 에 singleton 이름의 Package 생성
+2. 만든 singleton 패키지에 SingletonTest 이름의 Class 생성
+
+```java
+package hello.core.singleton;
+
+import hello.core.AppConfig;
+import hello.core.member.MemberService;
+import org.assertj.core.api.Assertions;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+
+public class SingletonTest {
+
+    @Test
+    @DisplayName("스프링 없는 순수한 DI 컨테이너")
+    void pureContainer() {
+        AppConfig appConfig = new AppConfig();
+
+        // 1. 조회 : 호출할 때마다 객체 생성
+        MemberService memberService1 = appConfig.memberService();
+
+        // 2. 조회 : 호출할 때마다 객체 생성
+        MemberService memberService2 = appConfig.memberService();
+
+        // 참조값이 다른 것을 확인
+        System.out.println("memberService1 = " + memberService1);
+        System.out.println("memberService2 = " + memberService2);
+
+        // memberService1 ≠ memberService2
+        Assertions.assertThat(memberService1).isNotSameAs(memberService2);
+    }
+}
+```
+
+- 테스트 결과
+
+![Untitled](img/SingletonTest.png)
+
+→ 참조값이 다른 것을 확인할 수 있다
+
+✅ AppConfig (스프링 없는 순수한 DI 컨테이너) : 요청을 할 때 마다 객체 새로 생성 → 메모리 낭비가 심함
+
+✅ 싱글톤 패턴 : 해당 객체를 1개만 생성한 후 공유
+
+<!------------------------------------------------------------>
+<!------------------------------------------------------------>
+<!------------------------------------------------------------>
+
+# 싱글톤 패턴
+
+- 클래스의 인스턴스가 딱 1개만 생성되는 것을 보장하는 디자인 패턴
+- private 생성자 사용 (외부에서 임의로 new 키워드 사용 방지) → 객체 인스턴스 2개 이상 생성 방지
+
+1. test/java/hello.core/singleton 패키지에 SingletonService 이름의 Class 생성
+
+```java
+package hello.core.singleton;
+
+public class SingletonService {
+
+    private static final SingletonService instance = new SingletonService();
+
+    public static SingletonService getInstance() {
+        return instance;
+    }
+    
+    private SingletonService() {}
+
+    public void logic() {
+        System.out.println("싱글톤 객체 로직 호출");
+    }
+}
+```
+
+- private 으로 new 키워드를 막아둠
+- 호출할 때마다 같은 객체 인스턴스 반환
+
+2. test/java/hello.core/singleton/SingletonTest 에 코드 추가
+
+```java
+...
+
+import static org.assertj.core.api.Assertions.assertThat;
+
+public class SingletonTest {
+
+    ...
+
+    @Test
+    @DisplayName("싱글톤 패턴을 적용한 객체 사용")
+    void singletonServiceTest() {
+        SingletonService singletonService1 = SingletonService.getInstance();
+        SingletonService singletonService2 = SingletonService.getInstance();
+
+        System.out.println("singletonService1 = " + singletonService1);
+        System.out.println("singletonService2 = " + singletonService2);
+
+        assertThat(singletonService1).isSameAs(singletonService2);
+    }
+}
+```
+
+- 테스트 결과
+
+![Untitled](img/SingletonService.png)
+
+→ 같은 객체가 생성된 것을 확인할 수 있다
+
+### 싱글톤 패턴 문제점
+
+- 싱글톤 패턴을 구현하는 코드가 많음
+- 클라이언트가 구체 클래스에 의존 → DIP, OCP 위반
+- 테스트가 어려움
+- 내부 속성을 변경하거나 초기화 하기 어려움
+- private 생성자 → 자식 클래스 만들기 어려움
+- 유연성이 떨어짐
+- 안티패턴이라 불림
+
+<!------------------------------------------------------------>
+<!------------------------------------------------------------>
+<!------------------------------------------------------------>
+
+# 싱글톤 컨테이너
+
+- 스프링 컨테이너는 싱글톤 패턴을 적용하지 않아도, 객체 인스턴스를 싱글톤(1개만 생성)으로 관리
+- 스프링 컨테이너 : 싱글톤 컨테이너 역할
+  - 싱글톤 레지스트리 : 싱글톤 객체를 생성하고 관리하는 기능
+- 스프링 컨테이너 → 싱글톤 패턴 단점 해결
+  - 싱글톤 패턴을 위한 지저분한 코드 X
+  - DIP, OCP, 테스트, private 생성자로부터 자유롭게 싱글톤 사용
+
+1. test/java/hello.core/SingletonTest 에 코드 추가
+
+```java
+...
+public class SingletonTest {
+
+    ...
+
+    @Test
+    @DisplayName("스프링 컨테이너와 싱글톤")
+    void springContainer() {
+        // AppConfig appConfig = new AppConfig();
+        ApplicationContext ac = new AnnotationConfigApplicationContext(AppConfig.class);
+
+        // 1. 조회 : 호출할 때마다 객체 생성
+        MemberService memberService1 = ac.getBean("memberService", MemberService.class);
+
+        // 2. 조회 : 호출할 때마다 객체 생성
+        MemberService memberService2 = ac.getBean("memberService", MemberService.class);
+
+        // 참조값이 같은 것을 확인
+        System.out.println("memberService1 = " + memberService1);
+        System.out.println("memberService2 = " + memberService2);
+
+        // memberService1 = memberService2
+        assertThat(memberService1).isSameAs(memberService2);
+    }
+}
+```
+
+- 테스트 결과
+
+![Untitled](img/singleton_springContainer.png)
+
+### 싱글톤 컨테이너 적용 후
+
+![Untitled](img/aftersingleton.png)
+
+➡️ 이미 만들어진 객체 공유 : 효율적인 재사용
+
+<!------------------------------------------------------------>
+<!------------------------------------------------------------>
+<!------------------------------------------------------------>
+
+# ⭐ 싱글톤 방식의 주의점
+
+- 싱글톤 객체는 상태를 유지(stateful)하도록 설계해서는 안됨 (여러 클라이언트가 같은 객체 인스턴스를 공유하기 때문)
+- 무상태(stateless)로 설계
+  - 특정 클라이언트에 의존적인 필드가 있어선 안됨
+  - 특정 클라이언트가 값을 변경할 수 있는 필드가 있어선 안됨 (가급적 읽기만 가능)
+  - 필드 대신 자바에서 공유되지 않는 지역변수, 파라미터, ThreadLocal 등 사용
+- 스프링 빈 필드에 공유 값 설정 시 장애 발생 가능
+
+## 문제 상황
+
+1. test/java/hello.core/singleton 패키지에 StatefulService 이름의 Class 생성
+
+```java
+package hello.core.singleton;
+
+public class StatefulService {
+
+    // 상태를 유지하는 필드
+    private int price;
+
+    public void order(String name, int price) {
+        System.out.println("name = " + name + "price = " + price);
+
+        // 문제가 되는 부분 !!
+        this.price = price;
+    }
+
+    public int getPrice() {
+        return price;
+    }
+}
+```
+
+2. test/java/hello.core/singleton 패키지에 StatefulServiceTest 이름의 Class 생성 (Windows : Ctrl + Shift + t, Linux : Command + Shift + t)
+
+```java
+package hello.core.singleton;
+
+import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.Test;
+import org.springframework.context.ApplicationContext;
+import org.springframework.context.annotation.AnnotationConfigApplicationContext;
+import org.springframework.context.annotation.Bean;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.*;
+
+class StatefulServiceTest {
+
+    @Test
+    void statefulServiceSingleton() {
+        ApplicationContext ac = new AnnotationConfigApplicationContext(TestConfig.class);
+        StatefulService statefulService1 = ac.getBean(StatefulService.class);
+        StatefulService statefulService2 = ac.getBean(StatefulService.class);
+
+        // Thread A : A 사용자 10000원 주문
+        statefulService1.order("userA", 10000);
+
+        // Thread B : B 사용자 20000원 주문
+        statefulService2.order("userB", 20000);
+
+        // Thread A : A 사용자 주문 금액 조회
+        int price = statefulService1.getPrice();
+        System.out.println("A price = " + price);
+
+        assertThat(statefulService1.getPrice()).isEqualTo(20000);
+    }
+
+    static class TestConfig {
+        @Bean
+        public StatefulService statefulService() {
+            return new StatefulService();
+        }
+    }
+
+}
+```
+
+- 테스트 결과
+
+![Untitled](img/Stateful.png)
+
+→ Thread A 사용자는 10000원을 기대했지만, 20000원 출력 !
+
+☑️ StatefulService 의 price 필드는 공유 필드인데, 특정 클라이언트가 값을 변경
+
+## 해결
+
+1. StatefulService 코드 변경
+
+```java
+package hello.core.singleton;
+
+public class StatefulService {
+
+    // 상태를 유지하는 필드
+    // private int price;
+
+    public int order(String name, int price) {
+        System.out.println("name = " + name + "price = " + price);
+
+        // 문제가 되는 부분 !!
+        // this.price = price;
+
+        return price;
+    }
+
+//    public int getPrice() {
+//        return price;
+//    }
+}
+```
+
+2. StatefulServiceTest 코드 변경
+
+```java
+...
+
+class StatefulServiceTest {
+
+    @Test
+    void statefulServiceSingleton() {
+        ApplicationContext ac = new AnnotationConfigApplicationContext(TestConfig.class);
+        StatefulService statefulService1 = ac.getBean(StatefulService.class);
+        StatefulService statefulService2 = ac.getBean(StatefulService.class);
+
+        // Thread A : A 사용자 10000원 주문
+        int userAPrice = statefulService1.order("userA", 10000);
+
+        // Thread B : B 사용자 20000원 주문
+        int userBPrice = statefulService2.order("userB", 20000);
+
+        // Thread A : A 사용자 주문 금액 조회
+        // int price = statefulService1.getPrice();
+        System.out.println("A price = " + userAPrice);
+
+        // assertThat(statefulService1.getPrice()).isEqualTo(20000);
+    }
+
+    ...
+}
+```
+
+- 테스트 결과
+
+![Untitled](img/Stateless.png)
+
+→ 해결
+
+✅ 스프링 빈은 항상 무상태(stateless)로 설계 !!
+
+<!------------------------------------------------------------>
+<!------------------------------------------------------------>
+<!------------------------------------------------------------>
+
+# @Configuration 과 싱글톤
+
+## 의문점
+
+- AppConfig
+
+```java
+...
+
+@Configuration
+public class AppConfig {
+
+    // @Bean memberService -> new MemoryMemberRepository()
+    // @Bean orderService -> new MemoryMemberRepository()
+
+    @Bean
+    public MemberService memberService() {
+        return new MemberServiceImpl(memberRepository());
+    }
+
+    @Bean
+    public MemoryMemberRepository memberRepository() {
+        return new MemoryMemberRepository();
+    }
+
+    @Bean
+    public OrderService orderService() {
+        return new OrderServiceImpl(memberRepository(), discountPolicy());
+    }
+
+    ...
+}
+```
+
+➡️ MemoryMemberRepository 가 2번 호출되면서 싱글톤이 깨지는 건 아닌가 ?
+
+### 테스트 해보기
+
+1. MemberServiceImpl 에 테스트 코드 추가
+
+```java
+...
+
+public class MemberServiceImpl implements MemberService{
+
+    ...
+
+    // 테스트 용도
+    public MemberRepository getMemberRepository() {
+        return memberRepository;
+    }
+}
+```
+
+2. OrderServiceImpl 에 테스트 코드 추가
+
+```java
+...
+
+public class OrderServiceImpl implements OrderService{
+
+    ...
+
+    // 테스트 용도
+    public MemberRepository getMemberRepository() {
+        return memberRepository;
+    }
+}
+```
+
+3. test/java/hello.core/singleton 패키지에 ConfigurationSingletonTest 이름의 Class 생성
+
+```java
+package hello.core.singleton;
+
+import hello.core.AppConfig;
+import hello.core.member.MemberRepository;
+import hello.core.member.MemberServiceImpl;
+import hello.core.order.OrderServiceImpl;
+import org.assertj.core.api.Assertions;
+import org.junit.jupiter.api.Test;
+import org.springframework.context.ApplicationContext;
+import org.springframework.context.annotation.AnnotationConfigApplicationContext;
+
+public class ConfigurationSingletonTest {
+
+    @Test
+    void configurationTest() {
+        ApplicationContext ac = new AnnotationConfigApplicationContext(AppConfig.class);
+
+        MemberServiceImpl memberService = ac.getBean("memberService", MemberServiceImpl.class);
+        OrderServiceImpl orderService = ac.getBean("orderService", OrderServiceImpl.class);
+        MemberRepository memberRepository = ac.getBean("memberRepository", MemberRepository.class);
+
+        MemberRepository memberRepository1 = memberService.getMemberRepository();
+        MemberRepository memberRepository2 = orderService.getMemberRepository();
+
+        System.out.println("memberService -> memberRepository = " + memberRepository1);
+        System.out.println("orderService -> memberRepository = " + memberRepository2);
+        System.out.println("memberRepository = " + memberRepository);
+
+        Assertions.assertThat(memberService.getMemberRepository()).isSameAs(memberRepository);
+        Assertions.assertThat(orderService.getMemberRepository()).isSameAs(memberRepository);
+    }
+}
+```
+
+- 테스트 결과
+
+![Untitled](img/ConfigurationSingletonTest.png)
+
+→ 같은 인스턴스가 조회된다
+
+### AppConfig 에서 호출 로그 확인하기
+
+```java
+...
+@Configuration
+public class AppConfig {
+
+    @Bean
+    public MemberService memberService() {
+        // soutm
+        System.out.println("call AppConfig.memberService");
+        return new MemberServiceImpl(memberRepository());
+    }
+
+    @Bean
+    public MemoryMemberRepository memberRepository() {
+        System.out.println("call AppConfig.memberRepository");
+        return new MemoryMemberRepository();
+    }
+
+    @Bean
+    public OrderService orderService() {
+        System.out.println("call AppConfig.orderService");
+        return new OrderServiceImpl(memberRepository(), discountPolicy());
+    }
+
+    ...
+}
+```
+
+- 테스트 결과
+
+![Untitled](img/ConfigurationSingletonTest_AppConfigLog.png)
+
+→ 3번의 call 발생 : memberService, memberRepository, orderService
+
+☑️ 예상 call 호출 (순서는 보장 X)
+
+→ call AppConfig.memberService
+
+→ call AppConfig.memberRepository
+
+→ call AppConfig.memberRepository
+
+→ call AppConfig.orderService
+
+→ call AppConfig.memberRepository
+
+✅ 실제 call 호출
+
+→ call AppConfig.memberService
+
+→ call AppConfig.memberRepository
+
+→ call AppConfig.orderService
+
+<!------------------------------------------------------------>
+<!------------------------------------------------------------>
+<!------------------------------------------------------------>
+
+# @Configuration 과 바이트코드 조작의 마법
+
+- 스프링은 클래스의 바이트코드를 조작하는 라이브러리 사용
+- 비밀은 @Configuration 을 적용한 AppConfig 에 !!!
+
+1. ConfigurationSingletonTest 에 코드 추가
+
+```java
+...
+public class ConfigurationSingletonTest {
+
+    ...
+
+    @Test
+    void configurationDeep() {
+        ApplicationContext ac = new AnnotationConfigApplicationContext(AppConfig.class);
+        AppConfig bean = ac.getBean(AppConfig.class);
+
+        System.out.println("bean = " + bean.getClass());
+    }
+}
+```
+
+- 테스트 결과
+
+![Untitled](img/configurationDeep.png)
+
+→ 내가 만든 클래스가 아니라 스프링이 CGLIB 라는 바이트코드 조작 라이브러리를 사용해 AppConfig 클래스를 상속받은 임의의 다른 클래스를 만들고, 그 다른 클래스를 스프링 빈으로 등록한 것
+
+### AppConfig@CGLIB
+
+![Untitled](img/CGLIB.png)
+
+→ 임의의 다른 클래스가 싱글톤이 보장되도록 해줌
+
+- 예상 코드
+
+```java
+@Bean
+public MemberRepository memberRepository() {
+	if (memoryMemberRepository 가 이미 스프링 컨테이너에 등록되어 있으면) {
+		return 스프링 컨테이너에서 찾아서 반환;
+	} else { // 스프링 컨테이너에 없으면
+		기존 로직을 호출해서 MemoryMemberRepository 를 생성하고 스프링 컨테이너에 등록
+		return 반환
+	}
+}
+```
+
+### @Configuration 삭제했을 경우
+
+- @Configuration 을 적용하지 않고, @Bean 만 적용
+
+1. AppConfig 에서 @Configuration 삭제
+
+```java
+...
+// @Configuration
+public class AppConfig {
+
+    ...
+}
+```
+
+- 테스트 결과
+
+![Untitled](img/configurationDeep_withoutConfiguration.png)
+
+→ AppConfig 가 CGLIB 기술 없이 순수한 AppConfig 로 스프링 빈에 등록된 것을 확인
+
+☑️ 각자 다른 MemoryMemberRepository 인스턴스를 가지고 있다
+
+> **정리**
+> - @Bean 만 사용해도 스프링 빈으로 등록되지만, 싱글톤은 보장하지 않는다
+> - 항상 @Configuration 사용하기
+>
+
+<!------------------------------------------------------------>
+<!------------------------------------------------------------>
+<!------------------------------------------------------------>
+
+# 🐾🐾컴포넌트 스캔🐾🐾
+
+# 컴포넌트 스캔과 의존관계 자동 주입 시작하기
+
+- 컴포넌트 스캔 : 설정 정보 없이 자동으로 스프링 빈을 등록
+- @Autowired : 의존관계 자동 주입
+
+1. main/java/hello.core 에 AutoAppConfig 이름의 Class 생성
+
+```java
+package hello.core;
+
+import org.springframework.context.annotation.ComponentScan;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.FilterType;
+
+@Configuration
+@ComponentScan(
+        // AppConfig 설정 정보 제외하기
+        excludeFilters = @ComponentScan.Filter(type = FilterType.ANNOTATION, classes = Configuration.class)
+)
+public class AutoAppConfig { }
+```
+
+- @ComponentScan : @Component 애노테이션이 붙은 클래스를 스캔해서 스프링 빈으로 등록
+
+2. 구현체(MemoryMemberRepository, RateDiscountPolicy, MemberServiceImp, OrderServiceImpl)에 @Component, @Autowired 애노테이션 붙이기
+- MemoryMemberRepository
+
+```java
+...
+import org.springframework.stereotype.Component;
+
+@Component
+public class MemoryMemberRepository implements MemberRepository{
+
+    ...
+}
+```
+
+- RateDiscountPolicy
+
+```java
+...
+import org.springframework.stereotype.Component;
+
+@Component
+public class RateDiscountPolicy implements DiscountPolicy{
+
+    ...
+}
+```
+
+- MemberServiceImpl
+
+```java
+...
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Component;
+
+@Component
+public class MemberServiceImpl implements MemberService{
+
+    ...
+    @Autowired // 자동 의존관계 주입
+    public MemberServiceImpl(MemberRepository memberRepository) { ... }
+
+    ...
+}
+```
+
+- OrderServiceImpl
+
+```java
+...
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Component;
+
+@Component
+public class OrderServiceImpl implements OrderService{
+
+    ...
+    @Autowired
+    public OrderServiceImpl(MemberRepository memberRepository, DiscountPolicy discountPolicy) { ... }
+
+    ...
+}
+```
+
+3. test/java/hello.core 에 scan 이름의 Package 생성
+4. 만든 scan 패키지에 AutoAppConfigTest 이름의 Class 생성
+
+```java
+package hello.core.scan;
+
+import hello.core.AutoAppConfig;
+import hello.core.member.MemberService;
+import org.junit.jupiter.api.Test;
+import org.springframework.context.annotation.AnnotationConfigApplicationContext;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
+public class AutoAppConfigTest {
+
+    @Test
+    void basicScan() {
+        AnnotationConfigApplicationContext ac = new AnnotationConfigApplicationContext(AutoAppConfig.class);
+
+        MemberService memberService = ac.getBean(MemberService.class);
+        assertThat(memberService).isInstanceOf(MemberService.class);
+    }
+}
+```
+
+- 테스트 결과
+
+![Untitled](img/AutoAppConfigTest.png)
+
+→ 잘 동작한다
+
+### @ComponentScan
+
+![Untitled](img/@ComponentScan.png)
+
+- @ComponentScan 은 @Component 가 붙은 모든 클래스를 스프링 빈으로 등록
+- 스프링 빈의 기본 이름 : 클래스명 - 맨 앞글자만 소문자 사용
+  - ex) MemberServiceImpl → memberServiceImpl
+  - 빈 이름 직접 지정 : @Component(”memberService2”)
+
+### @Autowired
+
+![Untitled](img/@Autowired.png)
+
+- 생성자에 @Autowired 지정 시, 스프링 컨테이너가 자동으로 해당 스프링 빈 찾은 후 주입
+- 기본 조회 전략 : 타입이 같은 빈을 찾아 주입
+
+![Untitled](img/@Autowired2.png)
+
+- 생성자에 파라미터가 많아도 자동 주입
+
+<!------------------------------------------------------------>
+<!------------------------------------------------------------>
+<!------------------------------------------------------------>
+
+# 탐색 위치와 기본 스캔 대상
+
+## 탐색할 패키지의 시작 위치 지정
+
+- AutoAppConfig
+
+```java
+...
+@Configuration
+@ComponentScan(
+        // 탐색할 패키지 시작 위치 지정하기
+        basePackages = "hello.core.member",
+        // 지정한 클래스의 패키지를 탐색 시작 위치로 지정하기
+        basePackageClasses = AutoAppConfig.class,
+        ...
+)
+public class AutoAppConfig { }
+```
+
+→ basePackages : 탐색할 패키지의 시작 위치 지정, 하위 패키지 모두 탐색
+
+→ basePackageClasses : 지정하지 않을 시 @ComponentScan 이 붙은 설정 정보 클래스의 패키지가 시작 위치
+
+> ✅ **권장하는 방법**
+>
+> 패키지 위치를 지정하지 않고, 설정 정보 클래스의 위치를 프로젝트 최상단에 두는 것 (스프링 부트가 기본으로 제공하는 방법)
+>
+
+### 컴포넌트 스캔 기본 대상
+
+- @Component : 컴포넌트 스캔에서 사용
+- @Controller : 스프링 MVC 컨트롤러에서 사용
+- @Service : 스프링 비즈니스 로직에서 사용 → 비즈니스 계층 인식
+- @Repository : 스프링 데이터 접근 계층에서 사용 →데이터 계층의 예외를 스프링 예외로 변환
+- @Configuration : 스프링 설정 정보에서 사용 → 스프링 빈이 싱글톤을 유지하도록 추가 처리
+
+> ⭐ **참고 ⭐**
+>
+> 애노테이션에는 상속관계라는 것이 없다. 애노테이션이 특정 애노테이션을 들고 있는 것을 인식할 수 있는 것은 자바 언어가 지원하는 기능은 아니고, 스프링이 지원하는 기능이다.
+>
+
+> **참고**
+>
+> useDefaultFilters 옵션은 기본으로 켜져있는데, 이 옵션을 끄면 기본 스캔 대상들이 제외된다.
+>
+
+<!------------------------------------------------------------>
+<!------------------------------------------------------------>
+<!------------------------------------------------------------>
+
+# 필터
+
+- includeFilters : 컴포넌트 스캔 대상을 추가로 지정
+- excludeFilters : 컴포넌트 스캔에서 제외할 대상 지정
+
+1. test/java/hello.core/scan 에 filter 이름의 Package 생성
+2. 만든 filter 패키지에 MyIncludeComponent 이름의 Annotation 생성
+
+```java
+package hello.core.scan.filter;
+
+import java.lang.annotation.*;
+
+@Target(ElementType.TYPE)
+@Retention(RetentionPolicy.RUNTIME)
+@Documented
+public @interface MyIncludeComponent { }
+```
+
+→ 컴포넌트 스캔 대상에 추가할 애노테이션
+
+3. filter 패키지에 MyExcludeComponent 이름의 Annotation 생성
+
+```java
+package hello.core.scan.filter;
+
+import java.lang.annotation.*;
+
+@Target(ElementType.TYPE)
+@Retention(RetentionPolicy.RUNTIME)
+@Documented
+public @interface MyExcludeComponent { }
+```
+
+→ 컴포넌트 스캔 대상에서 제외할 애노테이션
+
+4. filter 패키지에 BeanA, BeanB 이름의 Class 생성
+- BeanA
+
+```java
+package hello.core.scan.filter;
+
+@MyIncludeComponent
+public class BeanA { }
+```
+
+→ 컴포넌트 스캔 대상에 추가할 클래스 (@MyIncludeComponent 적용)
+
+- BeanB
+
+```java
+package hello.core.scan.filter;
+
+@MyExcludeComponent // 컴포넌트 스캔 대상에서 제외
+public class BeanB { }
+```
+
+→ 컴포넌트 스캔 대상에서 제외할 클래스 (@MyExcludeComponent 적용)
+
+5. filter 패키지에 ComponentFilterAppConfigTest 이름의 Class 생성
+
+```java
+package hello.core.scan.filter;
+
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.NoSuchBeanDefinitionException;
+import org.springframework.context.ApplicationContext;
+import org.springframework.context.annotation.AnnotationConfigApplicationContext;
+import org.springframework.context.annotation.ComponentScan;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.FilterType;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+
+public class ComponentFilterAppConfigTest {
+
+    @Test
+    void filterScan() {
+        ApplicationContext ac = new AnnotationConfigApplicationContext(ComponentFilterAppConfig.class);
+        BeanA beanA = ac.getBean("beanA", BeanA.class);
+        assertThat(beanA).isNotNull();
+
+        assertThrows(
+                NoSuchBeanDefinitionException.class,
+                () -> ac.getBean("beanB", BeanB.class)
+        );
+    }
+
+    @Configuration
+    @ComponentScan(
+            includeFilters = @ComponentScan.Filter(type = FilterType.ANNOTATION, classes = MyIncludeComponent.class),
+            excludeFilters = @ComponentScan.Filter(type = FilterType.ANNOTATION, classes = MyExcludeComponent.class)
+    )
+    static class ComponentFilterAppConfig {}
+}
+```
+
+➡️ includeFilters 에 MyIncludeComponent 애노테이션을 추가해서 BeanA 가 스프링 빈에 등록됨
+
+➡️ excludeFilters 에 MyExcludeComponent 애노테이션을 추가해서 BeanB 는 스프링 빈에 등록되지 않음
+
+- 테스트 결과
+
+![Untitled](img/ComponentFilterAppConfigTest.png)
+
+→ 성공 !
+
+### FilterType 옵션
+
+- ANNOTATION : 기본값, 애노테이션을 인식해서 동작 (생략 가능)
+- ASSIGNABLE_TYPE : 지정한 타입과 자식 타입을 인식해서 동작
+- ASPECT J : AspectJ 패턴 사용
+- REGEX : 정규 표현식
+- CUSTOM : TypeFilter 이라는 인터페이스 구현해서 처리
+
+> **참고**
+>
+> @Component 면 충분하기 때문에, includeFilters 를 사용할 일은 거의 없다. excludeFilters 는 간혹 사용하지만 많지는 않다. 최근 스프링 부트는 컴포넌트 스캔을 기본으로 제공하는데, 옵션을 변경하면서 사용하기보단 스프링의 기본 설정에 맞추어 사용하는 것을 권장한다.
+>
+
+<!------------------------------------------------------------>
+<!------------------------------------------------------------>
+<!------------------------------------------------------------>
+
+# 중복 등록과 충돌
+
+- 컴포넌트 스캔에서 같은 빈 이름을 등록하면 어떻게 될까?
+  - 자동 빈 등록 vs. 자동 빈 등록
+  - 수동 빈 등록 vs. 자동 빈 등록
+
+## 자동 빈 등록 vs. 자동 빈 등록
+
+- ConflictingBeanDefinitionException 예외 발생
+
+## 수동 빈 등록 vs. 자동 빈 등록
+
+- 수동 빈 등록이 우선권을 가짐 → 수동 빈이 자동 빈을 오버라이딩
+- 최근 스프링 부트에서는 수동 빈 등록과 자동 빈 등록이 충돌나면 오류가 발생하도록 기본 값을 바꿈
+
+
+<!------------------------------------------------------------>
+<!------------------------------------------------------------>
+<!------------------------------------------------------------>
+
+
+
+
+<!------------------------------------------------------------>
+<!------------------------------------------------------------>
+<!------------------------------------------------------------>
+
+
+
+<!------------------------------------------------------------>
+<!------------------------------------------------------------>
+<!------------------------------------------------------------>
+
+
+
+<!------------------------------------------------------------>
+<!------------------------------------------------------------>
+<!------------------------------------------------------------>
