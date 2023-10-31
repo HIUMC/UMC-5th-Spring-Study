@@ -152,7 +152,7 @@
     
     - static영역에 SingleTonService를 참조하는 instance를 미리 생성해서 올려둔다.
     - 이는 오직 getInstance()를 통해서만 조회 가능하다
-    - private으로 설정해 이부에서 new로 객체가 설정되는 것을 막는다.
+    - private으로 설정해 외부에서 new로 객체가 설정되는 것을 막는다.
     
     문제점들
     
@@ -441,7 +441,7 @@
         }
         ```
         
-    - 조회한 빈이 여러개/모두 필요한 경우
+    - **조회한 빈이 여러개/모두 필요한 경우**
         
         ex → 고객이 fix, rate 선택하여 할인받을 수 있는 경우
         
@@ -468,3 +468,143 @@
         ```
         
         위 코드와 같이 필요한 빈을 Map에 모두 등록한 후 호출할 때마다 Map에서 꺼내서 쓴다
+        
+    
+- **빈 생명주기 콜백**
+    
+    > 스프링 빈은 객체를 생성한 후에 의존관계를 주입한다!
+    > 
+    
+    ! 스프링 빈의 이벤트 순서 !
+    
+    스프링 컨테이너 생성 → 스프링 빈 생성 → 의존 관계 주입 → (완료 의미의 콜백) → 초기화 등의 작업 → (소멸 의미의 콜백) → 소멸
+    
+            ⇒ 생성 작업 (light & important) 과  초기화 (heavy) 의 작업을 분리하는게 좋다
+    
+    ---
+    
+    콜백 기능 구현 방법
+    
+    1. 인터페이스 
+        
+        ```java
+        public class NetworkClient implements InitializingBean, DisposableBean {}
+        @Override
+            public void destroy() throws Exception {
+                disconnect();
+            }
+        
+            @Override
+            public void afterPropertiesSet() throws Exception {
+                connect();
+                call("초기화 연결 메시지");
+            }
+        ```
+        
+    2. 메서드
+        
+        ```java
+        @Bean(initMethod = "init", destroyMethod = "close")
+        ```
+        
+    3. 어노테이션 
+        
+        ```java
+        @PostConstruct
+            public void init()
+        
+        @PreDestroy
+            public void close()
+        ```
+        
+        <aside>
+        💡 @PostConstruct와 @PreDestroy를 사용하되 외부를 고쳐야 하면 @Bean을 사용
+        
+        </aside>
+        
+    
+- **빈 스코프**
+    - 스코프의 종류
+        - 싱글톤: 스프링 컨테이너의 시작과 종료까지 유지되는 가장 넓은 범위의 스코프 (default)
+            
+            ![Untitled](SPRING%20%E1%84%92%E1%85%A2%E1%86%A8%E1%84%89%E1%85%B5%E1%86%B7%20%E1%84%8B%E1%85%AF%E1%86%AB%E1%84%85%E1%85%B5%20-%20%E1%84%80%E1%85%B5%E1%84%87%E1%85%A9%E1%86%AB%20d90f0fc5692b4d959e36d1967629ada4/Untitled%207.png)
+            
+        - 프로토타입 : 스프링 컨테이너가 프로토타입 빈의 생성과 의존관계 주입까지만 관여하고 더는 관리하지 않는 매우 짧은 범위의 스코프
+            
+            ![프로토타입은 빈을 생성하고 의존관게를 주입하고 초기화까지만 처리해준다
+            ⇒ 그 이후는 클라이언트가 책임을 가지며 @Predestroy같은 메서드 사용 X](SPRING%20%E1%84%92%E1%85%A2%E1%86%A8%E1%84%89%E1%85%B5%E1%86%B7%20%E1%84%8B%E1%85%AF%E1%86%AB%E1%84%85%E1%85%B5%20-%20%E1%84%80%E1%85%B5%E1%84%87%E1%85%A9%E1%86%AB%20d90f0fc5692b4d959e36d1967629ada4/Untitled%208.png)
+            
+            프로토타입은 빈을 생성하고 의존관게를 주입하고 초기화까지만 처리해준다
+            ⇒ 그 이후는 클라이언트가 책임을 가지며 @Predestroy같은 메서드 사용 X
+            
+        - request : 웹 요청이 들어오고 나갈때 까지 유지되는 스코프
+            
+            ![이렇게 동시에 여러 요청이 오면 어떤 요청이 남긴 로그인지 구분하기 어렵다 → request scope 사용](SPRING%20%E1%84%92%E1%85%A2%E1%86%A8%E1%84%89%E1%85%B5%E1%86%B7%20%E1%84%8B%E1%85%AF%E1%86%AB%E1%84%85%E1%85%B5%20-%20%E1%84%80%E1%85%B5%E1%84%87%E1%85%A9%E1%86%AB%20d90f0fc5692b4d959e36d1967629ada4/Untitled%209.png)
+            
+            이렇게 동시에 여러 요청이 오면 어떤 요청이 남긴 로그인지 구분하기 어렵다 → request scope 사용
+            
+            - ObjectProvider를 사용
+                
+                ```java
+                @RequiredArgsConstructor
+                public class LogDemoController {....
+                	private final ObjectProvider<MyLogger> myLoggerProvider;...
+                	MyLogger myLogger = myLoggerProvider.getObject(); ...}
+                ```
+                
+                - ObjectProvider 덕분에 ObjectProvider.getObject() 를 호출하는 시점까지 request scope 빈의 생성을 지연할 수 있다.
+                - ObjectProvider.getObject() 를 호출하시는 시점에는 HTTP 요청이 진행중이므로 request scope 빈의 생성이 정상 처리된다.
+                - ObjectProvider.getObject() 를 LogDemoController , LogDemoService 에서 각각 한번씩 따로 호출해도 같은 HTTP 요청이면 같은 스프링 빈이 반환된다
+                
+            
+            ---
+            
+            - 프록시 사용
+                
+                ```java
+                @Scope(value = "request",proxyMode = ScopedProxyMode.TARGET_CLASS)
+                ```
+                
+                - 실행하면 MyLogger를 상속받은 가짜 프록시 클래스를 만들어서 컨테이너에 “myLogger”라는 이름으로 객체를 등록하고 의존관계도 주입된다.
+                - 가짜 프록시 객체는 request 스코프의 진짜 myLogger.log() 를 호출한다.
+                - 클라이언트가 myLogger.log() 을 호출하면 사실은 가짜 프록시 객체의 메서드를 호출한 것이다.
+                - 가짜 프록시 객체는 원본 클래스를 상속 받아서 만들어졌기 때문에 이 객체를 사용하는 클라이언트 입장에서는 사실 원본인지 아닌지도 모르게, 동일하게 사용할 수 있다(다형성)
+                
+    
+    ---
+    
+    - 프로토타입과 싱글톤을 같이 사용할때
+        - 문제점
+            
+            
+            ![Untitled](SPRING%20%E1%84%92%E1%85%A2%E1%86%A8%E1%84%89%E1%85%B5%E1%86%B7%20%E1%84%8B%E1%85%AF%E1%86%AB%E1%84%85%E1%85%B5%20-%20%E1%84%80%E1%85%B5%E1%84%87%E1%85%A9%E1%86%AB%20d90f0fc5692b4d959e36d1967629ada4/Untitled%2010.png)
+            
+            ![Untitled](SPRING%20%E1%84%92%E1%85%A2%E1%86%A8%E1%84%89%E1%85%B5%E1%86%B7%20%E1%84%8B%E1%85%AF%E1%86%AB%E1%84%85%E1%85%B5%20-%20%E1%84%80%E1%85%B5%E1%84%87%E1%85%A9%E1%86%AB%20d90f0fc5692b4d959e36d1967629ada4/Untitled%2011.png)
+            
+            ![Untitled](SPRING%20%E1%84%92%E1%85%A2%E1%86%A8%E1%84%89%E1%85%B5%E1%86%B7%20%E1%84%8B%E1%85%AF%E1%86%AB%E1%84%85%E1%85%B5%20-%20%E1%84%80%E1%85%B5%E1%84%87%E1%85%A9%E1%86%AB%20d90f0fc5692b4d959e36d1967629ada4/Untitled%2012.png)
+            
+            같은 빈을 사용할거라면 싱글톤으로 하지 프로토타입으로 할 이유가 없음 ⇒ 오류라고 가정
+            
+            싱글톤 빈 안에 생성된 프로토타입 빈은 이전에 이미 주입이 완료된 빈으로 사용할때마다 새로 생성되지 않는다
+            
+        - 해결 방법
+            
+            DI를 기다리는게 아니라 의존관계를 탐색하기 위해 빈을 컨테이너에서 찾아주는 DL (Dependency Lookup) 기능을 이용한다.
+            
+            - Object Provider
+                
+                ```java
+                @Autowired
+                        private ObjectProvider<PrototypeBean> prototypeBeanProvider;
+                public int logic() {
+                            PrototypeBean prototypeBean = prototypeBeanProvider.getObject();}
+                ```
+                
+            - javax.inject.Provider
+                
+                ```java
+                @Autowired
+                        private Provider<PrototypeBean> provider;
+                public int logic() {
+                            PrototypeBean prototypeBean = provider.get();}
+                ```
