@@ -5,16 +5,65 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="f2308419-7d77-4aa3-983a-653cd6ebe657" name="Changes" comment="">
+      <change afterPath="$PROJECT_DIR$/yuuddin/스프링_핵심원리_기본편/README/Untitled 10.png" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/yuuddin/스프링_핵심원리_기본편/README/Untitled 11.png" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/yuuddin/스프링_핵심원리_기본편/README/Untitled 12.png" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/yuuddin/스프링_핵심원리_기본편/README/Untitled 7.png" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/yuuddin/스프링_핵심원리_기본편/README/Untitled 8.png" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/yuuddin/스프링_핵심원리_기본편/README/Untitled 9.png" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/yuuddin/스프링_핵심원리_기본편/README.md" beforeDir="false" afterPath="$PROJECT_DIR$/yuuddin/스프링_핵심원리_기본편/README.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/yuuddin/스프링_핵심원리_기본편/core/build.gradle" beforeDir="false" afterPath="$PROJECT_DIR$/yuuddin/스프링_핵심원리_기본편/core/build.gradle" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/yuuddin/스프링_핵심원리_기본편/core/src/main/java/hello/core/AppConfig.java" beforeDir="false" afterPath="$PROJECT_DIR$/yuuddin/스프링_핵심원리_기본편/core/src/main/java/hello/core/AppConfig.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/yuuddin/스프링_핵심원리_기본편/core/src/main/java/hello/core/discount/FixDiscountPolicy.java" beforeDir="false" afterPath="$PROJECT_DIR$/yuuddin/스프링_핵심원리_기본편/core/src/main/java/hello/core/discount/FixDiscountPolicy.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/yuuddin/스프링_핵심원리_기본편/core/src/main/java/hello/core/discount/RateDiscountPolicy.java" beforeDir="false" afterPath="$PROJECT_DIR$/yuuddin/스프링_핵심원리_기본편/core/src/main/java/hello/core/discount/RateDiscountPolicy.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/yuuddin/스프링_핵심원리_기본편/core/src/main/java/hello/core/member/MemberServiveImpl.java" beforeDir="false" afterPath="$PROJECT_DIR$/yuuddin/스프링_핵심원리_기본편/core/src/main/java/hello/core/member/MemberServiveImpl.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/yuuddin/스프링_핵심원리_기본편/core/src/main/java/hello/core/member/MemoryMemberRepository.java" beforeDir="false" afterPath="$PROJECT_DIR$/yuuddin/스프링_핵심원리_기본편/core/src/main/java/hello/core/member/MemoryMemberRepository.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/yuuddin/스프링_핵심원리_기본편/core/src/main/java/hello/core/order/OrderServiceImpl.java" beforeDir="false" afterPath="$PROJECT_DIR$/yuuddin/스프링_핵심원리_기본편/core/src/main/java/hello/core/order/OrderServiceImpl.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/yuuddin/스프링_핵심원리_기본편/core/src/test/java/hello/core/xml/XmlAppContext.java" beforeDir="false" afterPath="$PROJECT_DIR$/yuuddin/스프링_핵심원리_기본편/core/src/test/java/hello/core/xml/XmlAppContext.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/yuuddin/스프링_핵심원리_기본편/core/build.gradle" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/yuuddin/스프링_핵심원리_기본편/core/gradle/wrapper/gradle-wrapper.jar" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/yuuddin/스프링_핵심원리_기본편/core/gradle/wrapper/gradle-wrapper.properties" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/yuuddin/스프링_핵심원리_기본편/core/gradlew" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/yuuddin/스프링_핵심원리_기본편/core/gradlew.bat" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/yuuddin/스프링_핵심원리_기본편/core/settings.gradle" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/yuuddin/스프링_핵심원리_기본편/core/src/main/java/hello/core/AppConfig.java" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/yuuddin/스프링_핵심원리_기본편/core/src/main/java/hello/core/AutoAppConfig.java" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/yuuddin/스프링_핵심원리_기본편/core/src/main/java/hello/core/CoreApplication.java" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/yuuddin/스프링_핵심원리_기본편/core/src/main/java/hello/core/HelloLombok.java" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/yuuddin/스프링_핵심원리_기본편/core/src/main/java/hello/core/MemberApp.java" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/yuuddin/스프링_핵심원리_기본편/core/src/main/java/hello/core/OrderApp.java" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/yuuddin/스프링_핵심원리_기본편/core/src/main/java/hello/core/annotation/MainDiscountPolicy.java" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/yuuddin/스프링_핵심원리_기본편/core/src/main/java/hello/core/discount/DiscountPolicy.java" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/yuuddin/스프링_핵심원리_기본편/core/src/main/java/hello/core/discount/FixDiscountPolicy.java" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/yuuddin/스프링_핵심원리_기본편/core/src/main/java/hello/core/discount/RateDiscountPolicy.java" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/yuuddin/스프링_핵심원리_기본편/core/src/main/java/hello/core/member/Grade.java" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/yuuddin/스프링_핵심원리_기본편/core/src/main/java/hello/core/member/Member.java" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/yuuddin/스프링_핵심원리_기본편/core/src/main/java/hello/core/member/MemberRepository.java" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/yuuddin/스프링_핵심원리_기본편/core/src/main/java/hello/core/member/MemberService.java" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/yuuddin/스프링_핵심원리_기본편/core/src/main/java/hello/core/member/MemberServiveImpl.java" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/yuuddin/스프링_핵심원리_기본편/core/src/main/java/hello/core/member/MemoryMemberRepository.java" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/yuuddin/스프링_핵심원리_기본편/core/src/main/java/hello/core/order/Order.java" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/yuuddin/스프링_핵심원리_기본편/core/src/main/java/hello/core/order/OrderService.java" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/yuuddin/스프링_핵심원리_기본편/core/src/main/java/hello/core/order/OrderServiceImpl.java" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/yuuddin/스프링_핵심원리_기본편/core/src/main/resources/appConfig.xml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/yuuddin/스프링_핵심원리_기본편/core/src/main/resources/application.properties" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/yuuddin/스프링_핵심원리_기본편/core/src/test/java/hello/core/CoreApplicationTests.java" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/yuuddin/스프링_핵심원리_기본편/core/src/test/java/hello/core/autowired/AllBeanTest.java" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/yuuddin/스프링_핵심원리_기본편/core/src/test/java/hello/core/autowired/AutowiredTest.java" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/yuuddin/스프링_핵심원리_기본편/core/src/test/java/hello/core/beandefinition/BeanDefinitionTest.java" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/yuuddin/스프링_핵심원리_기본편/core/src/test/java/hello/core/beanfind/ApplicationContextBasicFindTest.java" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/yuuddin/스프링_핵심원리_기본편/core/src/test/java/hello/core/beanfind/ApplicationContextExtendsFindTest.java" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/yuuddin/스프링_핵심원리_기본편/core/src/test/java/hello/core/beanfind/ApplicationContextInfoTest.java" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/yuuddin/스프링_핵심원리_기본편/core/src/test/java/hello/core/beanfind/ApplicationContextSameBeanFindTest.java" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/yuuddin/스프링_핵심원리_기본편/core/src/test/java/hello/core/discount/RateDiscountPolicyTest.java" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/yuuddin/스프링_핵심원리_기본편/core/src/test/java/hello/core/member/MemberServiceTest.java" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/yuuddin/스프링_핵심원리_기본편/core/src/test/java/hello/core/order/OrderServiceImplTest.java" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/yuuddin/스프링_핵심원리_기본편/core/src/test/java/hello/core/order/OrderServiceTest.java" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/yuuddin/스프링_핵심원리_기본편/core/src/test/java/hello/core/scan/AutoAppConfigTest.java" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/yuuddin/스프링_핵심원리_기본편/core/src/test/java/hello/core/scan/filter/BeanA.java" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/yuuddin/스프링_핵심원리_기본편/core/src/test/java/hello/core/scan/filter/BeanB.java" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/yuuddin/스프링_핵심원리_기본편/core/src/test/java/hello/core/scan/filter/ComponentFilterAppConfigTest.java" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/yuuddin/스프링_핵심원리_기본편/core/src/test/java/hello/core/scan/filter/MyExcludeComponent.java" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/yuuddin/스프링_핵심원리_기본편/core/src/test/java/hello/core/scan/filter/MyIncludeComponent.java" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/yuuddin/스프링_핵심원리_기본편/core/src/test/java/hello/core/singleton/ConfigurationSingletonTest.java" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/yuuddin/스프링_핵심원리_기본편/core/src/test/java/hello/core/singleton/SingleTonService.java" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/yuuddin/스프링_핵심원리_기본편/core/src/test/java/hello/core/singleton/SingleTonTest.java" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/yuuddin/스프링_핵심원리_기본편/core/src/test/java/hello/core/singleton/StatefulService.java" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/yuuddin/스프링_핵심원리_기본편/core/src/test/java/hello/core/singleton/StatefulServiceTest.java" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/yuuddin/스프링_핵심원리_기본편/core/src/test/java/hello/core/xml/XmlAppContext.java" beforeDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -64,6 +113,7 @@
       <workItem from="1696303586122" duration="896000" />
       <workItem from="1696395682882" duration="56000" />
       <workItem from="1696925720473" duration="892000" />
+      <workItem from="1698743134519" duration="298000" />
     </task>
     <servers />
   </component>
