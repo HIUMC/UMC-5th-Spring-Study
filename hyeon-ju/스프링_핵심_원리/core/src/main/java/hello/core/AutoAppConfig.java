@@ -16,8 +16,9 @@ import org.springframework.stereotype.Component;
 ) //스프링 빈을 쫙 긁어서 자동으로 끌어 올려줌
 public class AutoAppConfig {
 
-    @Bean(name = "memoryMemberRepository")
+    /*@Bean(name = "memoryMemberRepository")
     MemberRepository memberRepository() {
         return new MemoryMemberRepository();
     }
+     */
 }
