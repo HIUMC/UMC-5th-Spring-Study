@@ -1,4 +1,4 @@
--- Copyright 2004-2019 H2 Group. Multiple-Licensed under the MPL 2.0,
+-- Copyright 2004-2023 H2 Group. Multiple-Licensed under the MPL 2.0,
 -- and the EPL 1.0 (https://h2database.com/html/license.html).
 -- Initial Developer: H2 Group
 --
@@ -11,6 +11,15 @@ SELECT JSON_OBJECT('key1' : NULL ABSENT ON NULL);
 
 SELECT JSON_OBJECT('key1' : NULL NULL ON NULL);
 >> {"key1":null}
+
+SELECT JSON_OBJECT();
+>> {}
+
+SELECT JSON_OBJECT(NULL ON NULL);
+>> {}
+
+SELECT JSON_OBJECT(WITHOUT UNIQUE KEYS);
+>> {}
 
 SELECT JSON_OBJECT('key1' : NULL, 'key1' : 2 NULL ON NULL WITHOUT UNIQUE KEYS);
 >> {"key1":null,"key1":2}
@@ -47,3 +56,15 @@ SELECT JSON_OBJECT(NULL ON NULL WITHOUT);
 
 DROP TABLE TEST;
 > ok
+
+SET MODE MySQL;
+> ok
+
+SELECT JSON_OBJECT('key1', 10, 'key2', 'str');
+>> {"key1":10,"key2":"str"}
+
+SET MODE MariaDB;
+> ok
+
+SELECT JSON_OBJECT('key1', 10, 'key2', 'str');
+>> {"key1":10,"key2":"str"}

@@ -1,5 +1,5 @@
 /*
- * Copyright 2004-2019 H2 Group. Multiple-Licensed under the MPL 2.0,
+ * Copyright 2004-2023 H2 Group. Multiple-Licensed under the MPL 2.0,
  * and the EPL 1.0 (https://h2database.com/html/license.html).
  * Initial Developer: H2 Group
  */
@@ -7,13 +7,14 @@ package org.h2.store;
 
 import java.io.IOException;
 import java.io.OutputStream;
-import java.io.RandomAccessFile;
 import java.net.BindException;
 import java.net.ConnectException;
 import java.net.InetAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.net.UnknownHostException;
+import java.nio.ByteBuffer;
+import java.nio.channels.FileChannel;
 import java.util.Properties;
 import org.h2.Driver;
 import org.h2.api.ErrorCode;
@@ -22,6 +23,7 @@ import org.h2.engine.SessionRemote;
 import org.h2.message.DbException;
 import org.h2.message.Trace;
 import org.h2.message.TraceSystem;
+import org.h2.store.fs.FilePath;
 import org.h2.store.fs.FileUtils;
 import org.h2.util.MathUtils;
 import org.h2.util.NetUtils;
@@ -101,7 +103,7 @@ public class FileLock implements Runnable {
     public synchronized void lock(FileLockMethod fileLockMethod) {
         checkServer();
         if (locked) {
-            DbException.throwInternalError("already locked");
+            throw DbException.getInternalError("already locked");
         }
         switch (fileLockMethod) {
         case FILE:
@@ -208,10 +210,9 @@ public class FileLock implements Runnable {
          * cache.
          */
         try {
-            try (RandomAccessFile raRD = new RandomAccessFile(fileName, "rws")) {
-                raRD.seek(0);
-                byte b[] = new byte[1];
-                raRD.read(b);
+            try (FileChannel f = FilePath.get(fileName).open("rws")) {
+                ByteBuffer b = ByteBuffer.wrap(new byte[1]);
+                f.read(b);
             }
         } catch (IOException ignoreEx) {}
         return FileUtils.lastModified(fileName);

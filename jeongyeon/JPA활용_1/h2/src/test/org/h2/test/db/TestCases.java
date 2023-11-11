@@ -1,12 +1,14 @@
 /*
- * Copyright 2004-2019 H2 Group. Multiple-Licensed under the MPL 2.0,
+ * Copyright 2004-2023 H2 Group. Multiple-Licensed under the MPL 2.0,
  * and the EPL 1.0 (https://h2database.com/html/license.html).
  * Initial Developer: H2 Group
  */
 package org.h2.test.db;
 
+import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.StringReader;
+import java.math.BigDecimal;
 import java.sql.Connection;
 import java.sql.Date;
 import java.sql.PreparedStatement;
@@ -20,7 +22,6 @@ import java.util.List;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
 import org.h2.api.ErrorCode;
-import org.h2.engine.SysProperties;
 import org.h2.store.fs.FileUtils;
 import org.h2.test.TestBase;
 import org.h2.test.TestDb;
@@ -36,7 +37,7 @@ public class TestCases extends TestDb {
      * @param a ignored
      */
     public static void main(String... a) throws Exception {
-        TestBase.createCaller().init().test();
+        TestBase.createCaller().init().testFromMain();
     }
 
     @Override
@@ -52,13 +53,11 @@ public class TestCases extends TestDb {
         testLargeKeys();
         testExtraSemicolonInDatabaseURL();
         testGroupSubquery();
-        testSelfReferentialColumn();
         testCountDistinctNotNull();
         testDependencies();
         testConvertType();
         testSortedSelect();
         testMaxMemoryRows();
-        testDeleteTop();
         testLikeExpressions();
         testUnicode();
         testOuterJoin();
@@ -82,6 +81,9 @@ public class TestCases extends TestDb {
         testExecuteTrace();
         testExplain();
         testExplainAnalyze();
+        testDataChangeDeltaTable();
+        testGroupSortedReset();
+        testShowColumns();
         if (config.memory) {
             return;
         }
@@ -101,7 +103,6 @@ public class TestCases extends TestDb {
         testDefaultQueryReconnect();
         testBigString();
         testRenameReconnect();
-        testAllSizes();
         testCreateDrop();
         testPolePos();
         testQuick();
@@ -110,7 +111,6 @@ public class TestCases extends TestDb {
         testDoubleRecovery();
         testConstraintReconnect();
         testCollation();
-        testBinaryCollation();
         deleteDb("cases");
     }
 
@@ -147,6 +147,7 @@ public class TestCases extends TestDb {
         stat.execute("drop table if exists a, b");
         stat.execute("create table a(id int, x int) as select 1, 100");
         stat.execute("create index idx1 on a(id, x)");
+        stat.execute("alter table a add unique(id)");
         stat.execute("create table b(id int primary key, a_id int) as select 1, 1");
         stat.execute("alter table b add constraint x " +
                 "foreign key(a_id) references a(id)");
@@ -177,9 +178,9 @@ public class TestCases extends TestDb {
         Connection conn = getConnection("cases");
         Statement stat = conn.createStatement();
         stat.execute(
-                "create view test as select 0 value, 'x' name from dual");
+                "create view test as select 0 v, 'x' name from dual");
         PreparedStatement prep = conn.prepareStatement(
-                "select 1 from test where name=? and value=? and value<=?");
+                "select 1 from test where name=? and v=? and v<=?");
         prep.setString(1, "x");
         prep.setInt(2, 0);
         prep.setInt(3, 1);
@@ -227,16 +228,6 @@ public class TestCases extends TestDb {
                 " from test where a = t.a and b = 0) from test t group by a");
         rs.next();
         assertEquals(0, rs.getInt(1));
-        conn.close();
-    }
-
-    private void testSelfReferentialColumn() throws SQLException {
-        deleteDb("selfreferential");
-        Connection conn = getConnection("selfreferential");
-        Statement stat = conn.createStatement();
-        stat.execute("create table sr(id integer, usecount integer as usecount + 1)");
-        assertThrows(ErrorCode.NULL_NOT_ALLOWED, stat).execute("insert into sr(id) values (1)");
-        assertThrows(ErrorCode.MUST_GROUP_BY_COLUMN_1, stat).execute("select max(id), usecount from sr");
         conn.close();
     }
 
@@ -342,6 +333,10 @@ public class TestCases extends TestDb {
             assertEquals(data[i], rs.getString(2));
         }
         stat.execute("drop table test");
+        rs = stat.executeQuery("select floor(\u3000 1.2) \ud835\udca9");
+        rs.next();
+        assertEquals(BigDecimal.ONE, rs.getBigDecimal(1));
+        assertEquals("\ud835\udca9", rs.getMetaData().getColumnLabel(1));
         conn.close();
     }
 
@@ -594,7 +589,7 @@ public class TestCases extends TestDb {
         deleteDb("cases");
         Connection conn = getConnection("cases");
         Statement stat = conn.createStatement();
-        stat.execute("create table parent (pid int)");
+        stat.execute("create table parent (pid int primary key)");
         stat.execute("create table child (cid int primary key, pid int)");
         stat.execute("alter table child add foreign key (pid) references parent(pid)");
         stat.execute("alter table child add column c2 int");
@@ -645,12 +640,12 @@ public class TestCases extends TestDb {
         prep.setCharacterStream(2, new StringReader(value), -1);
         ResultSet rs = prep.executeQuery();
         rs.next();
-        String encrypted = rs.getString(1);
+        byte[] encrypted = rs.getBytes(1);
         PreparedStatement prep2 = conn.prepareStatement(
                 "CALL TRIM(CHAR(0) FROM " +
                 "UTF8TOSTRING(DECRYPT('AES', RAWTOHEX(?), ?)))");
         prep2.setCharacterStream(1, new StringReader(key), -1);
-        prep2.setCharacterStream(2, new StringReader(encrypted), -1);
+        prep2.setBinaryStream(2, new ByteArrayInputStream(encrypted), -1);
         ResultSet rs2 = prep2.executeQuery();
         rs2.first();
         String decrypted = rs2.getString(1);
@@ -675,12 +670,11 @@ public class TestCases extends TestDb {
         conn.close();
     }
 
-    private void testInvalidDatabaseName() throws SQLException {
+    private void testInvalidDatabaseName() {
         if (config.memory) {
             return;
         }
-        assertThrows(ErrorCode.INVALID_DATABASE_NAME_1, this).
-            getConnection("cases/");
+        assertThrows(ErrorCode.INVALID_DATABASE_NAME_1, () -> getConnection("cases/"));
     }
 
     private void testReuseSpace() throws SQLException {
@@ -833,28 +827,25 @@ public class TestCases extends TestDb {
         }
         deleteDb("cases");
         Connection conn = getConnection("cases");
-        final Statement stat = conn.createStatement();
+        Statement stat = conn.createStatement();
         stat.execute("CREATE TABLE TEST(ID IDENTITY)");
         for (int i = 0; i < 1000; i++) {
             stat.execute("INSERT INTO TEST() VALUES()");
         }
-        final SQLException[] stopped = { null };
-        Thread t = new Thread(new Runnable() {
-            @Override
-            public void run() {
-                try {
-                    long time = System.nanoTime();
-                    ResultSet rs = stat.executeQuery("SELECT MAX(T.ID) " +
-                            "FROM TEST T, TEST, TEST, TEST, TEST, " +
-                            "TEST, TEST, TEST, TEST, TEST, TEST");
-                    rs.next();
-                    time = System.nanoTime() - time;
-                    TestBase.logError("query was too quick; result: " +
-                            rs.getInt(1) + " time:" + TimeUnit.NANOSECONDS.toMillis(time), null);
-                } catch (SQLException e) {
-                    stopped[0] = e;
-                    // ok
-                }
+        SQLException[] stopped = { null };
+        Thread t = new Thread(() -> {
+            try {
+                long time = System.nanoTime();
+                ResultSet rs = stat.executeQuery("SELECT MAX(T.ID) " +
+                        "FROM TEST T, TEST, TEST, TEST, TEST, " +
+                        "TEST, TEST, TEST, TEST, TEST, TEST");
+                rs.next();
+                time = System.nanoTime() - time;
+                TestBase.logError("query was too quick; result: " +
+                        rs.getInt(1) + " time:" + TimeUnit.NANOSECONDS.toMillis(time), null);
+            } catch (SQLException e) {
+                stopped[0] = e;
+                // ok
             }
         });
         t.start();
@@ -1008,8 +999,8 @@ public class TestCases extends TestDb {
                 "    /* PUBLIC.PRIMARY_KEY_8: ID = O.ID */\n" +
                 "    ON 1=1\n" +
                 "WHERE (\"P\".\"ID\" = \"O\".\"ID\")\n" +
-                "    AND ((\"O\".\"ID\" = ?1)\n" +
-                "    AND (\"P\".\"SALARY\" > ?2))");
+                "    AND (\"O\".\"ID\" = ?1)\n" +
+                "    AND (\"P\".\"SALARY\" > ?2)");
 
         checkExplain(stat, "EXPLAIN SELECT * FROM PERSON p " +
             "INNER JOIN ORGANIZATION o ON p.id = o.id WHERE o.id = 10 AND p.salary > 1000",
@@ -1028,8 +1019,8 @@ public class TestCases extends TestDb {
                 "    /* PUBLIC.PRIMARY_KEY_8: ID = O.ID */\n" +
                 "    ON 1=1\n" +
                 "WHERE (\"P\".\"ID\" = \"O\".\"ID\")\n" +
-                "    AND ((\"O\".\"ID\" = 10)\n" +
-                "    AND (\"P\".\"SALARY\" > 1000))");
+                "    AND (\"O\".\"ID\" = 10)\n" +
+                "    AND (\"P\".\"SALARY\" > 1000)");
 
         PreparedStatement pStat = conn.prepareStatement(
                 "/* bla-bla */ EXPLAIN SELECT ID FROM ORGANIZATION WHERE id = ?");
@@ -1152,7 +1143,7 @@ public class TestCases extends TestDb {
         stat.execute("drop table test");
         stat.execute("create table test(id identity)");
         stat.execute("insert into test values(1)");
-        assertThrows(ErrorCode.INVALID_DATETIME_CONSTANT_2, stat).
+        assertThrows(ErrorCode.DATA_CONVERSION_ERROR_1, stat).
                 execute("alter table test alter column id date");
         conn.close();
         conn = getConnection("cases");
@@ -1188,46 +1179,6 @@ public class TestCases extends TestDb {
         assertEquals("Hello", rs.getString(1));
         rs.next();
         assertEquals("HELLO", rs.getString(1));
-        conn.close();
-    }
-
-    private void testBinaryCollation() throws SQLException {
-        deleteDb("cases");
-        Connection conn = getConnection("cases");
-        Statement stat = conn.createStatement();
-        ResultSet rs;
-
-        // test the SIGNED mode
-        stat.execute("SET BINARY_COLLATION SIGNED");
-        stat.execute("create table bin( x binary(1) );");
-        stat.execute("insert into bin(x) values (x'09'),(x'0a'),(x'99'),(x'aa');");
-        rs = stat.executeQuery("select * from bin order by x;");
-        rs.next();
-        assertEquals("99", rs.getString(1));
-        rs.next();
-        assertEquals("aa", rs.getString(1));
-        rs.next();
-        assertEquals("09", rs.getString(1));
-        rs.next();
-        assertEquals("0a", rs.getString(1));
-        stat.execute("drop table bin");
-        // test UNSIGNED mode (default)
-        stat.execute("SET BINARY_COLLATION UNSIGNED");
-        stat.execute("create table bin( x binary(1) );");
-        stat.execute("insert into bin(x) values (x'09'),(x'0a'),(x'99'),(x'aa');");
-        rs = stat.executeQuery("select * from bin order by x;");
-        rs.next();
-        assertEquals("09", rs.getString(1));
-        rs.next();
-        assertEquals("0a", rs.getString(1));
-        rs.next();
-        assertEquals("99", rs.getString(1));
-        rs.next();
-        assertEquals("aa", rs.getString(1));
-        stat.execute("drop table bin");
-        stat.execute("SET BINARY_COLLATION "
-                + (SysProperties.SORT_BINARY_UNSIGNED ? "UNSIGNED" : "SIGNED"));
-
         conn.close();
     }
 
@@ -1297,7 +1248,7 @@ public class TestCases extends TestDb {
         conn.close();
         conn = getConnection("cases");
         stat = conn.createStatement();
-        assertThrows(ErrorCode.TABLE_OR_VIEW_NOT_FOUND_1, stat).
+        assertThrows(ErrorCode.TABLE_OR_VIEW_NOT_FOUND_DATABASE_EMPTY_1, stat).
                 execute("select * from abc");
         conn.close();
     }
@@ -1385,7 +1336,7 @@ public class TestCases extends TestDb {
         Statement stat = conn.createStatement();
         stat.execute("drop table if exists parent");
         stat.execute("drop table if exists child");
-        stat.execute("create table parent(id int)");
+        stat.execute("create table parent(id int primary key)");
         stat.execute("create table child(c_id int, p_id int, " +
                 "foreign key(p_id) references parent(id))");
         stat.execute("insert into parent values(1), (2)");
@@ -1438,7 +1389,7 @@ public class TestCases extends TestDb {
         deleteDb("cases");
         Connection conn = getConnection("cases");
         conn.createStatement().execute("CREATE TABLE TEST_SEQ" +
-                "(ID INT IDENTITY, NAME VARCHAR(255))");
+                "(ID INT GENERATED BY DEFAULT AS IDENTITY, NAME VARCHAR(255))");
         conn.createStatement().execute("CREATE TABLE TEST" +
                 "(ID INT PRIMARY KEY)");
         conn.createStatement().execute("ALTER TABLE TEST RENAME TO TEST2");
@@ -1446,8 +1397,8 @@ public class TestCases extends TestDb {
                 "(ID INT PRIMARY KEY, NAME VARCHAR, UNIQUE(NAME))");
         conn.close();
         conn = getConnection("cases");
-        conn.createStatement().execute("INSERT INTO TEST_SEQ(NAME) VALUES('Hi')");
-        ResultSet rs = conn.createStatement().executeQuery("CALL IDENTITY()");
+        ResultSet rs = conn.createStatement().executeQuery(
+                "SELECT ID FROM FINAL TABLE(INSERT INTO TEST_SEQ(NAME) VALUES('Hi'))");
         rs.next();
         assertEquals(1, rs.getInt(1));
         conn.createStatement().execute("SELECT * FROM TEST2");
@@ -1456,43 +1407,10 @@ public class TestCases extends TestDb {
         conn.close();
         conn = getConnection("cases");
         conn.createStatement().execute("SELECT * FROM TEST_B2");
-        conn.createStatement().execute(
-                "INSERT INTO TEST_SEQ(NAME) VALUES('World')");
-        rs = conn.createStatement().executeQuery("CALL IDENTITY()");
+        rs = conn.createStatement().executeQuery(
+                "SELECT ID FROM FINAL TABLE(INSERT INTO TEST_SEQ(NAME) VALUES('World'))");
         rs.next();
         assertEquals(2, rs.getInt(1));
-        conn.close();
-    }
-
-    private void testAllSizes() throws SQLException {
-        trace("testAllSizes");
-        deleteDb("cases");
-        Connection conn = getConnection("cases");
-        Statement stat = conn.createStatement();
-        stat.execute("CREATE TABLE TEST(A INT, B INT, C INT, DATA VARCHAR)");
-        int increment = getSize(100, 1);
-        for (int i = 1; i < 500; i += increment) {
-            StringBuilder buff = new StringBuilder();
-            buff.append("CREATE TABLE TEST");
-            for (int j = 0; j < i; j++) {
-                buff.append('a');
-            }
-            buff.append("(ID INT)");
-            String sql = buff.toString();
-            stat.execute(sql);
-            stat.execute("INSERT INTO TEST VALUES(" + i + ", 0, 0, '" + sql + "')");
-        }
-        conn.close();
-        conn = getConnection("cases");
-        stat = conn.createStatement();
-        ResultSet rs = stat.executeQuery("SELECT * FROM TEST");
-        while (rs.next()) {
-            int id = rs.getInt(1);
-            String s = rs.getString("DATA");
-            if (!s.endsWith(")")) {
-                fail("id=" + id);
-            }
-        }
         conn.close();
     }
 
@@ -1802,50 +1720,6 @@ public class TestCases extends TestDb {
         conn.close();
     }
 
-    private void testDeleteTop() throws SQLException {
-        deleteDb("cases");
-        Connection conn = getConnection("cases");
-        Statement stat = conn.createStatement();
-
-        stat.execute("CREATE TABLE TEST(id int) AS " +
-                "SELECT x FROM system_range(1, 100)");
-        stat.execute("DELETE TOP 10 FROM TEST");
-        ResultSet rs = stat.executeQuery("SELECT COUNT(*) FROM TEST");
-        assertTrue(rs.next());
-        assertEquals(90, rs.getInt(1));
-
-        stat.execute("DELETE FROM TEST LIMIT ((SELECT COUNT(*) FROM TEST) / 10)");
-        rs = stat.executeQuery("SELECT COUNT(*) FROM TEST");
-        assertTrue(rs.next());
-        assertEquals(81, rs.getInt(1));
-
-        rs = stat.executeQuery("EXPLAIN DELETE " +
-                "FROM TEST LIMIT ((SELECT COUNT(*) FROM TEST) / 10)");
-        rs.next();
-        assertEquals("DELETE FROM \"PUBLIC\".\"TEST\"\n" +
-                "    /* PUBLIC.TEST.tableScan */\n" +
-                "LIMIT ((SELECT\n" +
-                "    COUNT(*)\n" +
-                "FROM \"PUBLIC\".\"TEST\"\n" +
-                "    /* PUBLIC.TEST.tableScan */\n" +
-                "/* direct lookup */) / 10)",
-                rs.getString(1));
-
-        PreparedStatement prep;
-        prep = conn.prepareStatement("SELECT * FROM TEST LIMIT ?");
-        prep.setInt(1, 10);
-        prep.execute();
-
-        prep = conn.prepareStatement("DELETE FROM TEST LIMIT ?");
-        prep.setInt(1, 10);
-        prep.execute();
-        rs = stat.executeQuery("SELECT COUNT(*) FROM TEST");
-        assertTrue(rs.next());
-        assertEquals(71, rs.getInt(1));
-
-        conn.close();
-    }
-
     /** Tests fix for bug #682: Queries with 'like' expressions may filter rows incorrectly */
     private void testLikeExpressions() throws SQLException {
         Connection conn = getConnection("cases");
@@ -1857,4 +1731,59 @@ public class TestCases extends TestDb {
         assertEquals("%oo", rs.getString(1));
         conn.close();
     }
+
+    private void testDataChangeDeltaTable() throws SQLException {
+        /*
+         * This test case didn't reproduce the issue in the TestScript.
+         *
+         * The same UPDATE is necessary before and after usage of a data change
+         * delta table.
+         */
+        String updateCommand = "UPDATE TEST SET V = 3 WHERE ID = 1";
+        deleteDb("cases");
+        Connection conn = getConnection("cases");
+        Statement stat = conn.createStatement();
+        stat.execute("CREATE TABLE TEST(ID INT, V INT)");
+        assertEquals(0, stat.executeUpdate(updateCommand));
+        ResultSet rs = stat.executeQuery("SELECT V FROM FINAL TABLE (INSERT INTO TEST VALUES (1, 1))");
+        assertTrue(rs.next());
+        assertEquals(1, rs.getInt(1));
+        assertEquals(1, stat.executeUpdate(updateCommand));
+        rs = stat.executeQuery("SELECT V FROM TEST");
+        assertTrue(rs.next());
+        assertEquals(3, rs.getInt(1));
+        conn.close();
+    }
+
+    private void testGroupSortedReset() throws SQLException {
+        // This test case didn't reproduce the issue in the TestScript.
+        deleteDb("cases");
+        Connection conn = getConnection("cases");
+        Statement stat = conn.createStatement();
+        stat.execute("CREATE TABLE T1(A INT PRIMARY KEY, B INT) AS VALUES (1, 4), (2, 5), (3, 6)");
+        String sql = "SELECT B FROM T1 LEFT JOIN (VALUES 2) T2(A) USING(A) WHERE T2.A = 2 GROUP BY T1.A";
+        stat.execute(sql);
+        stat.execute("UPDATE T1 SET B = 7 WHERE A = 3");
+        stat.execute(sql);
+        conn.close();
+    }
+
+    private void testShowColumns() throws SQLException {
+        // This test requires a PreparedStatement
+        deleteDb("cases");
+        Connection conn = getConnection("cases");
+        Statement stat = conn.createStatement();
+        stat.execute("CREATE TABLE TEST(A INTEGER)");
+        PreparedStatement prep = conn.prepareStatement("SHOW COLUMNS FROM TEST");
+        ResultSet rs = prep.executeQuery();
+        assertTrue(rs.next());
+        assertFalse(rs.next());
+        stat.execute("ALTER TABLE TEST ADD COLUMN B INTEGER");
+        rs = prep.executeQuery();
+        assertTrue(rs.next());
+        assertTrue(rs.next());
+        assertFalse(rs.next());
+        conn.close();
+    }
+
 }

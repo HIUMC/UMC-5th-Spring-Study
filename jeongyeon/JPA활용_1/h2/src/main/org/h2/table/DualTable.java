@@ -1,12 +1,12 @@
 /*
- * Copyright 2004-2019 H2 Group. Multiple-Licensed under the MPL 2.0,
+ * Copyright 2004-2023 H2 Group. Multiple-Licensed under the MPL 2.0,
  * and the EPL 1.0 (https://h2database.com/html/license.html).
  * Initial Developer: H2 Group
  */
 package org.h2.table;
 
 import org.h2.engine.Database;
-import org.h2.engine.Session;
+import org.h2.engine.SessionLocal;
 import org.h2.index.DualIndex;
 import org.h2.index.Index;
 
@@ -32,17 +32,17 @@ public class DualTable extends VirtualTable {
     }
 
     @Override
-    public StringBuilder getSQL(StringBuilder builder, boolean alwaysQuote) {
+    public StringBuilder getSQL(StringBuilder builder, int sqlFlags) {
         return builder.append(NAME);
     }
 
     @Override
-    public boolean canGetRowCount() {
+    public boolean canGetRowCount(SessionLocal session) {
         return true;
     }
 
     @Override
-    public long getRowCount(Session session) {
+    public long getRowCount(SessionLocal session) {
         return 1L;
     }
 
@@ -52,7 +52,7 @@ public class DualTable extends VirtualTable {
     }
 
     @Override
-    public Index getScanIndex(Session session) {
+    public Index getScanIndex(SessionLocal session) {
         return new DualIndex(this);
     }
 
@@ -62,7 +62,7 @@ public class DualTable extends VirtualTable {
     }
 
     @Override
-    public long getRowCountApproximation() {
+    public long getRowCountApproximation(SessionLocal session) {
         return 1L;
     }
 

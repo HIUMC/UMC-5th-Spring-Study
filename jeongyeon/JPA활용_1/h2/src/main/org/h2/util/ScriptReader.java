@@ -1,5 +1,5 @@
 /*
- * Copyright 2004-2019 H2 Group. Multiple-Licensed under the MPL 2.0,
+ * Copyright 2004-2023 H2 Group. Multiple-Licensed under the MPL 2.0,
  * and the EPL 1.0 (https://h2database.com/html/license.html).
  * Initial Developer: H2 Group
  */
@@ -168,6 +168,7 @@ public class ScriptReader implements Closeable {
                 if (c == '*') {
                     // block comment
                     startRemark(true);
+                    int level = 1;
                     while (true) {
                         c = read();
                         if (c < 0) {
@@ -180,8 +181,19 @@ public class ScriptReader implements Closeable {
                                 break;
                             }
                             if (c == '/') {
-                                endRemark();
+                                if (--level == 0) {
+                                    endRemark();
+                                    break;
+                                }
+                            }
+                        } else if (c == '/') {
+                            c = read();
+                            if (c < 0) {
+                                clearRemark();
                                 break;
+                            }
+                            if (c == '*') {
+                                level++;
                             }
                         }
                     }

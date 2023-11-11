@@ -1,21 +1,21 @@
 /*
- * Copyright 2004-2019 H2 Group. Multiple-Licensed under the MPL 2.0,
+ * Copyright 2004-2023 H2 Group. Multiple-Licensed under the MPL 2.0,
  * and the EPL 1.0 (https://h2database.com/html/license.html).
  * Initial Developer: H2 Group
  */
 package org.h2.expression;
 
-import org.h2.command.Parser;
-import org.h2.engine.Session;
+import org.h2.engine.SessionLocal;
 import org.h2.table.ColumnResolver;
 import org.h2.table.TableFilter;
+import org.h2.util.ParserUtil;
 import org.h2.value.TypeInfo;
 import org.h2.value.Value;
 
 /**
  * A column alias as in SELECT 'Hello' AS NAME ...
  */
-public class Alias extends Expression {
+public final class Alias extends Expression {
 
     private final String alias;
     private Expression expr;
@@ -33,7 +33,7 @@ public class Alias extends Expression {
     }
 
     @Override
-    public Value getValue(Session session) {
+    public Value getValue(SessionLocal session) {
         return expr.getValue(session);
     }
 
@@ -48,7 +48,7 @@ public class Alias extends Expression {
     }
 
     @Override
-    public Expression optimize(Session session) {
+    public Expression optimize(SessionLocal session) {
         expr = expr.optimize(session);
         return this;
     }
@@ -59,23 +59,28 @@ public class Alias extends Expression {
     }
 
     @Override
-    public boolean isAutoIncrement() {
-        return expr.isAutoIncrement();
+    public boolean isIdentity() {
+        return expr.isIdentity();
     }
 
     @Override
-    public StringBuilder getSQL(StringBuilder builder, boolean alwaysQuote) {
-        expr.getSQL(builder, alwaysQuote).append(" AS ");
-        return Parser.quoteIdentifier(builder, alias, alwaysQuote);
+    public StringBuilder getUnenclosedSQL(StringBuilder builder, int sqlFlags) {
+        expr.getUnenclosedSQL(builder, sqlFlags).append(" AS ");
+        return ParserUtil.quoteIdentifier(builder, alias, sqlFlags);
     }
 
     @Override
-    public void updateAggregate(Session session, int stage) {
+    public void updateAggregate(SessionLocal session, int stage) {
         expr.updateAggregate(session, stage);
     }
 
     @Override
-    public String getAlias() {
+    public String getAlias(SessionLocal session, int columnIndex) {
+        return alias;
+    }
+
+    @Override
+    public String getColumnNameForView(SessionLocal session, int columnIndex) {
         return alias;
     }
 
@@ -95,6 +100,14 @@ public class Alias extends Expression {
     }
 
     @Override
+    public String getSchemaName() {
+        if (aliasColumnName) {
+            return null;
+        }
+        return expr.getSchemaName();
+    }
+
+    @Override
     public String getTableName() {
         if (aliasColumnName) {
             return null;
@@ -103,11 +116,11 @@ public class Alias extends Expression {
     }
 
     @Override
-    public String getColumnName() {
+    public String getColumnName(SessionLocal session, int columnIndex) {
         if (!(expr instanceof ExpressionColumn) || aliasColumnName) {
             return alias;
         }
-        return expr.getColumnName();
+        return expr.getColumnName(session, columnIndex);
     }
 
 }

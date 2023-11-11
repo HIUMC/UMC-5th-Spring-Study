@@ -1,5 +1,5 @@
 /*
- * Copyright 2004-2019 H2 Group. Multiple-Licensed under the MPL 2.0,
+ * Copyright 2004-2023 H2 Group. Multiple-Licensed under the MPL 2.0,
  * and the EPL 1.0 (https://h2database.com/html/license.html).
  * Initial Developer: H2 Group
  */
@@ -7,6 +7,7 @@ package org.h2.result;
 
 import java.io.IOException;
 
+import org.h2.engine.Constants;
 import org.h2.value.Transfer;
 import org.h2.value.TypeInfo;
 
@@ -41,9 +42,9 @@ public class ResultColumn {
     final TypeInfo columnType;
 
     /**
-     * True if this is an autoincrement column.
+     * True if this is an identity column.
      */
-    final boolean autoIncrement;
+    final boolean identity;
 
     /**
      * True if this column is nullable.
@@ -60,12 +61,11 @@ public class ResultColumn {
         schemaName = in.readString();
         tableName = in.readString();
         columnName = in.readString();
-        int valueType = in.readInt();
-        long precision = in.readLong();
-        int scale = in.readInt();
-        int displaySize = in.readInt();
-        columnType = new TypeInfo(valueType, precision, scale, displaySize, null);
-        autoIncrement = in.readBoolean();
+        columnType = in.readTypeInfo();
+        if (in.getVersion() < Constants.TCP_PROTOCOL_VERSION_20) {
+            in.readInt();
+        }
+        identity = in.readBoolean();
         nullable = in.readInt();
     }
 
@@ -75,6 +75,7 @@ public class ResultColumn {
      * @param out the object to where to write the data
      * @param result the result
      * @param i the column index
+     * @throws IOException on failure
      */
     public static void writeColumn(Transfer out, ResultInterface result, int i)
             throws IOException {
@@ -83,11 +84,11 @@ public class ResultColumn {
         out.writeString(result.getTableName(i));
         out.writeString(result.getColumnName(i));
         TypeInfo type = result.getColumnType(i);
-        out.writeInt(type.getValueType());
-        out.writeLong(type.getPrecision());
-        out.writeInt(type.getScale());
-        out.writeInt(type.getDisplaySize());
-        out.writeBoolean(result.isAutoIncrement(i));
+        out.writeTypeInfo(type);
+        if (out.getVersion() < Constants.TCP_PROTOCOL_VERSION_20) {
+            out.writeInt(type.getDisplaySize());
+        }
+        out.writeBoolean(result.isIdentity(i));
         out.writeInt(result.getNullable(i));
     }
 

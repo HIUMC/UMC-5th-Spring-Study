@@ -1,5 +1,5 @@
 /*
- * Copyright 2004-2019 H2 Group. Multiple-Licensed under the MPL 2.0,
+ * Copyright 2004-2023 H2 Group. Multiple-Licensed under the MPL 2.0,
  * and the EPL 1.0 (https://h2database.com/html/license.html).
  * Initial Developer: H2 Group
  */
@@ -23,17 +23,16 @@ public class FileFunctions {
      * command line.
      *
      * @param args the command line parameters
+     * @throws Exception on failure
      */
     public static void main(String... args) throws Exception {
         Class.forName("org.h2.Driver");
         Connection conn = DriverManager.getConnection("jdbc:h2:mem:", "sa", "");
         Statement stat = conn.createStatement();
-        stat.execute("CREATE ALIAS READ_TEXT_FILE " +
-                "FOR \"org.h2.samples.FileFunctions.readTextFile\" ");
+        stat.execute("CREATE ALIAS READ_TEXT_FILE FOR 'org.h2.samples.FileFunctions.readTextFile'");
         stat.execute("CREATE ALIAS READ_TEXT_FILE_WITH_ENCODING " +
-                "FOR \"org.h2.samples.FileFunctions.readTextFileWithEncoding\" ");
-        stat.execute("CREATE ALIAS READ_FILE " +
-                "FOR \"org.h2.samples.FileFunctions.readFile\" ");
+                "FOR 'org.h2.samples.FileFunctions.readTextFileWithEncoding'");
+        stat.execute("CREATE ALIAS READ_FILE FOR 'org.h2.samples.FileFunctions.readFile'");
         ResultSet rs = stat.executeQuery("CALL READ_FILE('test.txt')");
         rs.next();
         byte[] data = rs.getBytes(1);
@@ -52,6 +51,7 @@ public class FileFunctions {
      *
      * @param fileName the file name
      * @return the text
+     * @throws IOException on failure
      */
     public static String readTextFile(String fileName) throws IOException {
         byte[] buff = readFile(fileName);
@@ -65,6 +65,7 @@ public class FileFunctions {
      * @param fileName the file name
      * @param encoding the encoding
      * @return the text
+     * @throws IOException on failure
      */
     public static String readTextFileWithEncoding(String fileName,
             String encoding) throws IOException {
@@ -78,6 +79,7 @@ public class FileFunctions {
      *
      * @param fileName the file name
      * @return the byte array
+     * @throws IOException on failure
      */
     public static byte[] readFile(String fileName) throws IOException {
         try (RandomAccessFile file = new RandomAccessFile(fileName, "r")) {

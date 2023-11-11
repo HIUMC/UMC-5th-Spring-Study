@@ -1,5 +1,5 @@
 /*
- * Copyright 2004-2019 H2 Group. Multiple-Licensed under the MPL 2.0,
+ * Copyright 2004-2023 H2 Group. Multiple-Licensed under the MPL 2.0,
  * and the EPL 1.0 (https://h2database.com/html/license.html).
  * Initial Developer: H2 Group
  */
@@ -11,7 +11,7 @@ import java.util.Random;
 
 import org.h2.test.TestBase;
 import org.h2.value.Value;
-import org.h2.value.ValueString;
+import org.h2.value.ValueVarchar;
 
 /**
  * Tests numeric overflow on various data types.
@@ -30,15 +30,15 @@ public class TestOverflow extends TestBase {
      * @param a ignored
      */
     public static void main(String... a) throws Exception {
-        TestBase.createCaller().init().test();
+        TestBase.createCaller().init().testFromMain();
     }
 
     @Override
     public void test() {
-        test(Value.BYTE, Byte.MIN_VALUE, Byte.MAX_VALUE);
-        test(Value.INT, Integer.MIN_VALUE, Integer.MAX_VALUE);
-        test(Value.LONG, Long.MIN_VALUE, Long.MAX_VALUE);
-        test(Value.SHORT, Short.MIN_VALUE, Short.MAX_VALUE);
+        test(Value.TINYINT, Byte.MIN_VALUE, Byte.MAX_VALUE);
+        test(Value.INTEGER, Integer.MIN_VALUE, Integer.MAX_VALUE);
+        test(Value.BIGINT, Long.MIN_VALUE, Long.MAX_VALUE);
+        test(Value.SMALLINT, Short.MIN_VALUE, Short.MAX_VALUE);
     }
 
     private void test(int type, long minValue, long maxValue) {
@@ -124,7 +124,7 @@ public class TestOverflow extends TestBase {
     }
 
     private void add(long l) {
-        values.add(ValueString.get("" + l).convertTo(dataType));
+        values.add(ValueVarchar.get("" + l).convertTo(dataType));
     }
 
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright 2004-2019 H2 Group. Multiple-Licensed under the MPL 2.0,
+ * Copyright 2004-2023 H2 Group. Multiple-Licensed under the MPL 2.0,
  * and the EPL 1.0 (https://h2database.com/html/license.html).
  * Initial Developer: H2 Group
  */
@@ -64,7 +64,7 @@ public class TempFileDeleter {
             if (f2 != null) {
                 if (SysProperties.CHECK) {
                     if (resource != null && !f2.equals(resource)) {
-                        DbException.throwInternalError("f2:" + f2 + " f:" + resource);
+                        throw DbException.getInternalError("f2:" + f2 + " f:" + resource);
                     }
                 }
                 resource = f2;
@@ -105,11 +105,8 @@ public class TempFileDeleter {
      * Delete all unused resources now.
      */
     public void deleteUnused() {
-        while (queue != null) {
-            Reference<?> ref = queue.poll();
-            if (ref == null) {
-                break;
-            }
+        Reference<?> ref;
+        while ((ref = queue.poll()) != null) {
             deleteFile(ref, null);
         }
     }
@@ -128,8 +125,7 @@ public class TempFileDeleter {
             Object f2 = refMap.remove(ref);
             if (SysProperties.CHECK) {
                 if (f2 == null || !f2.equals(resource)) {
-                    DbException.throwInternalError("f2:" + f2 +
-                            " " + (f2 == null ? "" : f2) + " f:" + resource);
+                    throw DbException.getInternalError("f2:" + f2 + ' ' + (f2 == null ? "" : f2) + " f:" + resource);
                 }
             }
         }

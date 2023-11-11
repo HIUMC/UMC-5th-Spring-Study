@@ -1,5 +1,5 @@
 /*
- * Copyright 2004-2019 H2 Group. Multiple-Licensed under the MPL 2.0,
+ * Copyright 2004-2023 H2 Group. Multiple-Licensed under the MPL 2.0,
  * and the EPL 1.0 (https://h2database.com/html/license.html).
  * Initial Developer: H2 Group
  */
@@ -11,12 +11,12 @@ package org.h2.mvstore;
  * from a specific (target) key within a leaf node all the way up to te root
  * (bottom up path).
  */
-public class CursorPos
-{
+public final class CursorPos<K,V> {
+
     /**
      * The page at the current level.
      */
-    public Page page;
+    public Page<K,V> page;
 
     /**
      * Index of the key (within page above) used to go down to a lower level
@@ -29,10 +29,10 @@ public class CursorPos
      * Next node in the linked list, representing the position within parent level,
      * or null, if we are at the root level already.
      */
-    public CursorPos parent;
+    public CursorPos<K,V> parent;
 
 
-    public CursorPos(Page page, int index, CursorPos parent) {
+    public CursorPos(Page<K,V> page, int index, CursorPos<K,V> parent) {
         this.page = page;
         this.index = index;
         this.parent = parent;
@@ -43,21 +43,24 @@ public class CursorPos
      * rooted at a given Page. Resulting path starts at "insertion point" for a
      * given key and goes back to the root.
      *
+     * @param <K> key type
+     * @param <V> value type
+     *
      * @param page      root of the tree
      * @param key       the key to search for
      * @return head of the CursorPos chain (insertion point)
      */
-    public static CursorPos traverseDown(Page page, Object key) {
-        CursorPos cursorPos = null;
+    static <K,V> CursorPos<K,V> traverseDown(Page<K,V> page, K key) {
+        CursorPos<K,V> cursorPos = null;
         while (!page.isLeaf()) {
             int index = page.binarySearch(key) + 1;
             if (index < 0) {
                 index = -index;
             }
-            cursorPos = new CursorPos(page, index, cursorPos);
+            cursorPos = new CursorPos<>(page, index, cursorPos);
             page = page.getChildPage(index);
         }
-        return new CursorPos(page, page.binarySearch(key), cursorPos);
+        return new CursorPos<>(page, page.binarySearch(key), cursorPos);
     }
 
     /**
@@ -68,7 +71,7 @@ public class CursorPos
      */
     int processRemovalInfo(long version) {
         int unsavedMemory = 0;
-        for (CursorPos head = this; head != null; head = head.parent) {
+        for (CursorPos<K,V> head = this; head != null; head = head.parent) {
             unsavedMemory += head.page.removePage(version);
         }
         return unsavedMemory;

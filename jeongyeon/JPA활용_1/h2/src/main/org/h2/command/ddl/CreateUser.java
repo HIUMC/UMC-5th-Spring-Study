@@ -1,5 +1,5 @@
 /*
- * Copyright 2004-2019 H2 Group. Multiple-Licensed under the MPL 2.0,
+ * Copyright 2004-2023 H2 Group. Multiple-Licensed under the MPL 2.0,
  * and the EPL 1.0 (https://h2database.com/html/license.html).
  * Initial Developer: H2 Group
  */
@@ -8,12 +8,15 @@ package org.h2.command.ddl;
 import org.h2.api.ErrorCode;
 import org.h2.command.CommandInterface;
 import org.h2.engine.Database;
-import org.h2.engine.Session;
+import org.h2.engine.RightOwner;
+import org.h2.engine.SessionLocal;
 import org.h2.engine.User;
 import org.h2.expression.Expression;
 import org.h2.message.DbException;
 import org.h2.security.SHA256;
 import org.h2.util.StringUtils;
+import org.h2.value.DataType;
+import org.h2.value.Value;
 
 /**
  * This class represents the statement
@@ -29,7 +32,7 @@ public class CreateUser extends DefineCommand {
     private boolean ifNotExists;
     private String comment;
 
-    public CreateUser(Session session) {
+    public CreateUser(SessionLocal session) {
         super(session);
     }
 
@@ -53,12 +56,17 @@ public class CreateUser extends DefineCommand {
      * @param salt the salt
      * @param hash the hash
      */
-    static void setSaltAndHash(User user, Session session, Expression salt, Expression hash) {
+    static void setSaltAndHash(User user, SessionLocal session, Expression salt, Expression hash) {
         user.setSaltAndHash(getByteArray(session, salt), getByteArray(session, hash));
     }
 
-    private static byte[] getByteArray(Session session, Expression e) {
-        String s = e.optimize(session).getValue(session).getString();
+    private static byte[] getByteArray(SessionLocal session, Expression e) {
+        Value value = e.optimize(session).getValue(session);
+        if (DataType.isBinaryStringType(value.getValueType())) {
+            byte[] b = value.getBytes();
+            return b == null ? new byte[0] : b;
+        }
+        String s = value.getString();
         return s == null ? new byte[0] : StringUtils.convertHexToBytes(s);
     }
 
@@ -69,7 +77,7 @@ public class CreateUser extends DefineCommand {
      * @param session the session
      * @param password the password
      */
-    static void setPassword(User user, Session session, Expression password) {
+    static void setPassword(User user, SessionLocal session, Expression password) {
         String pwd = password.optimize(session).getValue(session).getString();
         char[] passwordChars = pwd == null ? new char[0] : pwd.toCharArray();
         byte[] userPasswordHash;
@@ -83,18 +91,18 @@ public class CreateUser extends DefineCommand {
     }
 
     @Override
-    public int update() {
+    public long update() {
         session.getUser().checkAdmin();
-        session.commit(true);
-        Database db = session.getDatabase();
-        if (db.findRole(userName) != null) {
-            throw DbException.get(ErrorCode.ROLE_ALREADY_EXISTS_1, userName);
-        }
-        if (db.findUser(userName) != null) {
-            if (ifNotExists) {
-                return 0;
+        Database db = getDatabase();
+        RightOwner rightOwner = db.findUserOrRole(userName);
+        if (rightOwner != null) {
+            if (rightOwner instanceof User) {
+                if (ifNotExists) {
+                    return 0;
+                }
+                throw DbException.get(ErrorCode.USER_ALREADY_EXISTS_1, userName);
             }
-            throw DbException.get(ErrorCode.USER_ALREADY_EXISTS_1, userName);
+            throw DbException.get(ErrorCode.ROLE_ALREADY_EXISTS_1, userName);
         }
         int id = getObjectId();
         User user = new User(db, id, userName, false);
@@ -105,7 +113,7 @@ public class CreateUser extends DefineCommand {
         } else if (password != null) {
             setPassword(user, session, password);
         } else {
-            throw DbException.throwInternalError();
+            throw DbException.getInternalError();
         }
         db.addDatabaseObject(session, user);
         return 0;

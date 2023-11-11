@@ -1,5 +1,5 @@
 /*
- * Copyright 2004-2019 H2 Group. Multiple-Licensed under the MPL 2.0,
+ * Copyright 2004-2023 H2 Group. Multiple-Licensed under the MPL 2.0,
  * and the EPL 1.0 (https://h2database.com/html/license.html).
  * Initial Developer: H2 Group
  */
@@ -9,71 +9,82 @@ import java.util.Iterator;
 import java.util.NoSuchElementException;
 
 /**
- * A cursor to iterate over elements in ascending order.
+ * A cursor to iterate over elements in ascending or descending order.
  *
  * @param <K> the key type
  * @param <V> the value type
  */
-public class Cursor<K, V> implements Iterator<K> {
+public final class Cursor<K,V> implements Iterator<K> {
+    private final boolean reverse;
     private final K to;
-    private CursorPos cursorPos;
-    private CursorPos keeper;
+    private CursorPos<K,V> cursorPos;
+    private CursorPos<K,V> keeper;
     private K current;
     private K last;
     private V lastValue;
-    private Page lastPage;
+    private Page<K,V> lastPage;
 
-    public Cursor(Page root, K from) {
-        this(root, from, null);
+
+    public Cursor(RootReference<K,V> rootReference, K from, K to) {
+        this(rootReference, from, to, false);
     }
 
-    public Cursor(Page root, K from, K to) {
-        this.cursorPos = traverseDown(root, from);
+    /**
+     * @param rootReference of the tree
+     * @param from starting key (inclusive), if null start from the first / last key
+     * @param to ending key (inclusive), if null there is no boundary
+     * @param reverse true if tree should be iterated in key's descending order
+     */
+    public Cursor(RootReference<K,V> rootReference, K from, K to, boolean reverse) {
+        this.lastPage = rootReference.root;
+        this.cursorPos = traverseDown(lastPage, from, reverse);
         this.to = to;
+        this.reverse = reverse;
     }
 
     @Override
-    @SuppressWarnings("unchecked")
     public boolean hasNext() {
         if (cursorPos != null) {
+            int increment = reverse ? -1 : 1;
             while (current == null) {
-                Page page = cursorPos.page;
+                Page<K,V> page = cursorPos.page;
                 int index = cursorPos.index;
-                if (index >= (page.isLeaf() ? page.getKeyCount() : page.map.getChildPageCount(page))) {
-                    CursorPos tmp = cursorPos;
+                if (reverse ? index < 0 : index >= upperBound(page)) {
+                    // traversal of this page is over, going up a level or stop if at the root already
+                    CursorPos<K,V> tmp = cursorPos;
                     cursorPos = cursorPos.parent;
-                    tmp.parent = keeper;
-                    keeper = tmp;
-                    if(cursorPos == null)
-                    {
+                    if (cursorPos == null) {
                         return false;
                     }
+                    tmp.parent = keeper;
+                    keeper = tmp;
                 } else {
+                    // traverse down to the leaf taking the leftmost path
                     while (!page.isLeaf()) {
                         page = page.getChildPage(index);
+                        index = reverse ? upperBound(page) - 1 : 0;
                         if (keeper == null) {
-                            cursorPos = new CursorPos(page, 0, cursorPos);
+                            cursorPos = new CursorPos<>(page, index, cursorPos);
                         } else {
-                            CursorPos tmp = keeper;
+                            CursorPos<K,V> tmp = keeper;
                             keeper = keeper.parent;
                             tmp.parent = cursorPos;
                             tmp.page = page;
-                            tmp.index = 0;
+                            tmp.index = index;
                             cursorPos = tmp;
                         }
-                        index = 0;
                     }
-                    if (index < page.getKeyCount()) {
-                        K key = (K) page.getKey(index);
-                        if (to != null && page.map.getKeyType().compare(key, to) > 0) {
+                    if (reverse ? index >= 0 : index < page.getKeyCount()) {
+                        K key = page.getKey(index);
+                        if (to != null && Integer.signum(page.map.getKeyType().compare(key, to)) == increment) {
                             return false;
                         }
                         current = last = key;
-                        lastValue = (V) page.getValue(index);
+                        lastValue = page.getValue(index);
                         lastPage = page;
                     }
                 }
-                ++cursorPos.index;
+                cursorPos.index += increment;
             }
         }
         return current != null;
@@ -111,7 +122,8 @@ public class Cursor<K, V> implements Iterator<K> {
      *
      * @return the page
      */
-    Page getPage() {
+    @SuppressWarnings("unused")
+    Page<K,V> getPage() {
         return lastPage;
     }
 
@@ -128,36 +140,46 @@ public class Cursor<K, V> implements Iterator<K> {
             }
         } else if(hasNext()) {
             assert cursorPos != null;
-            CursorPos cp = cursorPos;
-            CursorPos parent;
+            CursorPos<K,V> cp = cursorPos;
+            CursorPos<K,V> parent;
             while ((parent = cp.parent) != null) cp = parent;
-            Page root = cp.page;
-            @SuppressWarnings("unchecked")
-            MVMap<K, ?> map = (MVMap<K, ?>) root.map;
+            Page<K,V> root = cp.page;
+            MVMap<K,V> map = root.map;
             long index = map.getKeyIndex(next());
-            last = map.getKey(index + n);
-            this.cursorPos = traverseDown(root, last);
+            last = map.getKey(index + (reverse ? -n : n));
+            this.cursorPos = traverseDown(root, last, reverse);
         }
-    }
-
-    @Override
-    public void remove() {
-        throw DataUtils.newUnsupportedOperationException(
-                "Removal is not supported");
     }
 
     /**
      * Fetch the next entry that is equal or larger than the given key, starting
-     * from the given page. This method retains the stack.
+     * from the given page. This method returns the path.
      *
-     * @param p the page to start from
-     * @param key the key to search, null means search for the first key
+     * @param <K> key type
+     * @param <V> value type
+     *
+     * @param page to start from as a root
+     * @param key to search for, null means search for the first available key
+     * @param reverse true if traversal is in reverse direction, false otherwise
+     * @return CursorPos representing path from the entry found,
+     *         or from insertion point if not,
+     *         all the way up to to the root page provided
      */
-    private static CursorPos traverseDown(Page p, Object key) {
-        CursorPos cursorPos = key == null ? p.getPrependCursorPos(null) : CursorPos.traverseDown(p, key);
-        if (cursorPos.index < 0) {
-            cursorPos.index = -cursorPos.index - 1;
+    static <K,V> CursorPos<K,V> traverseDown(Page<K,V> page, K key, boolean reverse) {
+        CursorPos<K,V> cursorPos = key != null ? CursorPos.traverseDown(page, key) :
+                reverse ? page.getAppendCursorPos(null) : page.getPrependCursorPos(null);
+        int index = cursorPos.index;
+        if (index < 0) {
+            index = ~index;
+            if (reverse) {
+                --index;
+            }
+            cursorPos.index = index;
         }
         return cursorPos;
+    }
+
+    private static <K,V> int upperBound(Page<K,V> page) {
+        return page.isLeaf() ? page.getKeyCount() : page.map.getChildPageCount(page);
     }
 }

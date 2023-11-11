@@ -1,5 +1,5 @@
 /*
- * Copyright 2004-2019 H2 Group. Multiple-Licensed under the MPL 2.0,
+ * Copyright 2004-2023 H2 Group. Multiple-Licensed under the MPL 2.0,
  * and the EPL 1.0 (https://h2database.com/html/license.html).
  * Initial Developer: H2 Group
  */
@@ -12,9 +12,11 @@ import java.sql.DriverManager;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import javax.sql.DataSource;
 
+import org.h2.api.ErrorCode;
 import org.h2.jdbcx.JdbcConnectionPool;
 import org.h2.jdbcx.JdbcDataSource;
 import org.h2.test.TestBase;
@@ -32,7 +34,7 @@ public class TestConnectionPool extends TestDb {
      * @param a ignored
      */
     public static void main(String... a) throws Exception {
-        TestBase.createCaller().init().test();
+        TestBase.createCaller().init().testFromMain();
     }
 
     @Override
@@ -46,6 +48,7 @@ public class TestConnectionPool extends TestDb {
         testKeepOpen();
         testConnect();
         testThreads();
+        testUnwrap();
         deleteDb("connectionPool");
         deleteDb("connectionPool2");
     }
@@ -61,7 +64,7 @@ public class TestConnectionPool extends TestDb {
         conn1.close();
         conn2.createStatement().execute("shutdown immediately");
         cp.dispose();
-        assertTrue(w.toString().length() > 0);
+        assertTrue(w.toString().length() == 0);
         cp.dispose();
     }
 
@@ -71,7 +74,7 @@ public class TestConnectionPool extends TestDb {
         try {
             cp.getConnection();
         } catch (SQLException e) {
-            assertEquals(8001, e.getErrorCode());
+            assertEquals(ErrorCode.URL_FORMAT_ERROR_2, e.getErrorCode());
         }
         cp.dispose();
     }
@@ -81,9 +84,7 @@ public class TestConnectionPool extends TestDb {
         String password = getPassword();
         final JdbcConnectionPool man = JdbcConnectionPool.create(url, user, password);
         man.setLoginTimeout(1);
-        createClassProxy(man.getClass());
-        assertThrows(IllegalArgumentException.class, man).
-                setMaxConnections(-1);
+        assertThrows(IllegalArgumentException.class, () -> man.setMaxConnections(-1));
         man.setMaxConnections(2);
         // connection 1 (of 2)
         Connection conn = man.getConnection();
@@ -189,7 +190,7 @@ public class TestConnectionPool extends TestDb {
     private void testThreads() throws Exception {
         final int len = getSize(4, 20);
         final JdbcConnectionPool man = getConnectionPool(len - 2);
-        final boolean[] stop = { false };
+        final AtomicBoolean stop = new AtomicBoolean();
 
         /**
          * This class gets and returns connections from the pool.
@@ -198,7 +199,7 @@ public class TestConnectionPool extends TestDb {
             @Override
             public void run() {
                 try {
-                    while (!stop[0]) {
+                    while (!stop.get()) {
                         Connection conn = man.getConnection();
                         if (man.getActiveConnections() >= len + 1) {
                             throw new Exception("a: " +
@@ -221,7 +222,7 @@ public class TestConnectionPool extends TestDb {
             threads[i].start();
         }
         Thread.sleep(1000);
-        stop[0] = true;
+        stop.set(true);
         for (int i = 0; i < len; i++) {
             threads[i].join();
         }
@@ -251,6 +252,18 @@ public class TestConnectionPool extends TestDb {
                 getConnection();
         assertThrows(UnsupportedOperationException.class, ds).
                 getConnection(null, null);
+    }
+
+    private void testUnwrap() throws SQLException {
+        JdbcConnectionPool pool = JdbcConnectionPool.create(new JdbcDataSource());
+        assertTrue(pool.isWrapperFor(Object.class));
+        assertTrue(pool.isWrapperFor(DataSource.class));
+        assertTrue(pool.isWrapperFor(pool.getClass()));
+        assertFalse(pool.isWrapperFor(Integer.class));
+        assertTrue(pool == pool.unwrap(Object.class));
+        assertTrue(pool == pool.unwrap(DataSource.class));
+        assertTrue(pool == pool.unwrap(pool.getClass()));
+        assertThrows(ErrorCode.INVALID_VALUE_2, () -> pool.unwrap(Integer.class));
     }
 
 }

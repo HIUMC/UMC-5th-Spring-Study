@@ -1,5 +1,5 @@
 /*
- * Copyright 2004-2019 H2 Group. Multiple-Licensed under the MPL 2.0,
+ * Copyright 2004-2023 H2 Group. Multiple-Licensed under the MPL 2.0,
  * and the EPL 1.0 (https://h2database.com/html/license.html).
  * Initial Developer: H2 Group
  */
@@ -49,9 +49,12 @@ public interface Trigger {
      *            operation is performed
      * @param type the operation type: INSERT, UPDATE, DELETE, SELECT, or a
      *            combination (this parameter is a bit field)
+     * @throws SQLException on SQL exception
      */
-    void init(Connection conn, String schemaName, String triggerName,
-            String tableName, boolean before, int type) throws SQLException;
+    default void init(Connection conn, String schemaName, String triggerName,
+            String tableName, boolean before, int type) throws SQLException {
+        // Does nothing by default
+    }
 
     /**
      * This method is called for each triggered action. The method is called
@@ -82,12 +85,20 @@ public interface Trigger {
      * This method is called when the database is closed.
      * If the method throws an exception, it will be logged, but
      * closing the database will continue.
+     *
+     * @throws SQLException on SQL exception
      */
-    void close() throws SQLException;
+    default void close() throws SQLException {
+        // Does nothing by default
+    }
 
     /**
      * This method is called when the trigger is dropped.
+     *
+     * @throws SQLException on SQL exception
      */
-    void remove() throws SQLException;
+    default void remove() throws SQLException {
+        // Does nothing by default
+    }
 
 }

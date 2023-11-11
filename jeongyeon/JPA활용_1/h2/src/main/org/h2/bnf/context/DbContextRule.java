@@ -1,5 +1,5 @@
 /*
- * Copyright 2004-2019 H2 Group. Multiple-Licensed under the MPL 2.0,
+ * Copyright 2004-2023 H2 Group. Multiple-Licensed under the MPL 2.0,
  * and the EPL 1.0 (https://h2database.com/html/license.html).
  * Initial Developer: H2 Group
  */
@@ -172,9 +172,7 @@ public class DbContextRule implements Rule {
                         name = column.getQuotedName();
                         compare = query;
                     }
-                    if (compare.startsWith(name) &&
-                            (columnType == null ||
-                            column.getDataType().contains(columnType))) {
+                    if (compare.startsWith(name) && testColumnType(column)) {
                         String b = s.substring(name.length());
                         if (best == null || b.length() < best.length()) {
                             best = b;
@@ -199,8 +197,7 @@ public class DbContextRule implements Rule {
                     for (DbColumn column : table.getColumns()) {
                         String name = StringUtils.toUpperEnglish(column
                                 .getName());
-                        if (columnType == null
-                                || column.getDataType().contains(columnType)) {
+                        if (testColumnType(column)) {
                             if (up.startsWith(name)) {
                                 String b = s.substring(name.length());
                                 if (best == null || b.length() < best.length()) {
@@ -226,7 +223,7 @@ public class DbContextRule implements Rule {
             autoCompleteProcedure(sentence);
             break;
         default:
-            throw DbException.throwInternalError("type=" + type);
+            throw DbException.getInternalError("type=" + type);
         }
         if (!s.equals(query)) {
             while (Bnf.startWithSpace(s)) {
@@ -237,6 +234,21 @@ public class DbContextRule implements Rule {
         }
         return false;
     }
+
+    private boolean testColumnType(DbColumn column) {
+        if (columnType == null) {
+            return true;
+        }
+        String type = column.getDataType();
+        if (columnType.contains("CHAR") || columnType.contains("CLOB")) {
+            return type.contains("CHAR") || type.contains("CLOB");
+        }
+        if (columnType.contains("BINARY") || columnType.contains("BLOB")) {
+            return type.contains("BINARY") || type.contains("BLOB");
+        }
+        return type.contains(columnType);
+    }
+
     private void autoCompleteProcedure(Sentence sentence) {
         DbSchema schema = sentence.getLastMatchedSchema();
         if (schema == null) {

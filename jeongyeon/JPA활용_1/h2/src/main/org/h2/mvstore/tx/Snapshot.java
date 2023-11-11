@@ -1,5 +1,5 @@
 /*
- * Copyright 2004-2019 H2 Group. Multiple-Licensed under the MPL 2.0,
+ * Copyright 2004-2023 H2 Group. Multiple-Licensed under the MPL 2.0,
  * and the EPL 1.0 (https://h2database.com/html/license.html).
  * Initial Developer: H2 Group
  */
@@ -12,19 +12,19 @@ import org.h2.mvstore.RootReference;
 /**
  * Snapshot of the map root and committing transactions.
  */
-final class Snapshot {
+final class Snapshot<K,V> {
 
     /**
      * The root reference.
      */
-    final RootReference root;
+    final RootReference<K,V> root;
 
     /**
      * The committing transactions (see also TransactionStore.committingTransactions).
      */
     final BitSet committingTransactions;
 
-    Snapshot(RootReference root, BitSet committingTransactions) {
+    Snapshot(RootReference<K,V> root, BitSet committingTransactions) {
         this.root = root;
         this.committingTransactions = committingTransactions;
     }
@@ -38,6 +38,7 @@ final class Snapshot {
         return result;
     }
 
+    @SuppressWarnings("unchecked")
     @Override
     public boolean equals(Object obj) {
         if (this == obj) {
@@ -46,7 +47,7 @@ final class Snapshot {
         if (!(obj instanceof Snapshot)) {
             return false;
         }
-        Snapshot other = (Snapshot) obj;
+        Snapshot<K,V> other = (Snapshot<K,V>) obj;
         return committingTransactions == other.committingTransactions && root == other.root;
     }
 

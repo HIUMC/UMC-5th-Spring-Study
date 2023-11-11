@@ -1,5 +1,5 @@
 /*
- * Copyright 2004-2019 H2 Group. Multiple-Licensed under the MPL 2.0,
+ * Copyright 2004-2023 H2 Group. Multiple-Licensed under the MPL 2.0,
  * and the EPL 1.0 (https://h2database.com/html/license.html).
  * Initial Developer: H2 Group
  */
@@ -9,14 +9,18 @@ import java.io.IOException;
 import java.net.Socket;
 import java.sql.SQLException;
 import java.util.ArrayList;
-
 import org.h2.api.DatabaseEventListener;
 import org.h2.api.ErrorCode;
 import org.h2.api.JavaObjectSerializer;
 import org.h2.command.CommandInterface;
 import org.h2.command.CommandRemote;
 import org.h2.command.dml.SetTypes;
+import org.h2.engine.Mode.ModeEnum;
+import org.h2.expression.ParameterInterface;
 import org.h2.jdbc.JdbcException;
+import org.h2.jdbc.meta.DatabaseMeta;
+import org.h2.jdbc.meta.DatabaseMetaLegacy;
+import org.h2.jdbc.meta.DatabaseMetaRemote;
 import org.h2.message.DbException;
 import org.h2.message.Trace;
 import org.h2.message.TraceSystem;
@@ -24,8 +28,8 @@ import org.h2.result.ResultInterface;
 import org.h2.store.DataHandler;
 import org.h2.store.FileStore;
 import org.h2.store.LobStorageFrontend;
-import org.h2.store.LobStorageInterface;
 import org.h2.store.fs.FileUtils;
+import org.h2.util.DateTimeUtils;
 import org.h2.util.JdbcUtils;
 import org.h2.util.MathUtils;
 import org.h2.util.NetUtils;
@@ -33,17 +37,21 @@ import org.h2.util.NetworkConnectionInfo;
 import org.h2.util.SmallLRUCache;
 import org.h2.util.StringUtils;
 import org.h2.util.TempFileDeleter;
+import org.h2.util.TimeZoneProvider;
 import org.h2.util.Utils;
 import org.h2.value.CompareMode;
 import org.h2.value.Transfer;
 import org.h2.value.Value;
-import org.h2.value.ValueInt;
+import org.h2.value.ValueInteger;
+import org.h2.value.ValueLob;
+import org.h2.value.ValueTimestampTimeZone;
+import org.h2.value.ValueVarchar;
 
 /**
  * The client side part of a session when using the server mode. This object
  * communicates with a Session on the server side.
  */
-public class SessionRemote extends SessionWithState implements DataHandler {
+public final class SessionRemote extends Session implements DataHandler {
 
     public static final int SESSION_PREPARE = 0;
     public static final int SESSION_CLOSE = 1;
@@ -56,7 +64,7 @@ public class SessionRemote extends SessionWithState implements DataHandler {
     public static final int COMMAND_COMMIT = 8;
     public static final int CHANGE_ID = 9;
     public static final int COMMAND_GET_META_DATA = 10;
-    public static final int SESSION_PREPARE_READ_PARAMS = 11;
+    // 11 was used for SESSION_PREPARE_READ_PARAMS
     public static final int SESSION_SET_ID = 12;
     public static final int SESSION_CANCEL_STATEMENT = 13;
     public static final int SESSION_CHECK_KEY = 14;
@@ -64,13 +72,12 @@ public class SessionRemote extends SessionWithState implements DataHandler {
     public static final int SESSION_HAS_PENDING_TRANSACTION = 16;
     public static final int LOB_READ = 17;
     public static final int SESSION_PREPARE_READ_PARAMS2 = 18;
+    public static final int GET_JDBC_META = 19;
 
     public static final int STATUS_ERROR = 0;
     public static final int STATUS_OK = 1;
     public static final int STATUS_CLOSED = 2;
     public static final int STATUS_OK_STATE_CHANGED = 3;
-
-    private static SessionFactory sessionFactory;
 
     private TraceSystem traceSystem;
     private Trace trace;
@@ -86,21 +93,25 @@ public class SessionRemote extends SessionWithState implements DataHandler {
     private int clientVersion;
     private boolean autoReconnect;
     private int lastReconnect;
-    private SessionInterface embedded;
+    private Session embedded;
     private DatabaseEventListener eventListener;
     private LobStorageFrontend lobStorage;
     private boolean cluster;
     private TempFileDeleter tempFileDeleter;
 
     private JavaObjectSerializer javaObjectSerializer;
-    private volatile boolean javaObjectSerializerInitialized;
 
     private final CompareMode compareMode = CompareMode.getInstance(null, 0);
 
+    private final boolean oldInformationSchema;
+
     private String currentSchemaName;
+
+    private volatile DynamicSettings dynamicSettings;
 
     public SessionRemote(ConnectionInfo ci) {
         this.connectionInfo = ci;
+        oldInformationSchema = ci.getProperty("OLD_INFORMATION_SCHEMA", false);
     }
 
     @Override
@@ -116,8 +127,8 @@ public class SessionRemote extends SessionWithState implements DataHandler {
 
     private Transfer initTransfer(ConnectionInfo ci, String db, String server)
             throws IOException {
-        Socket socket = NetUtils.createSocket(server,
-                Constants.DEFAULT_TCP_PORT, ci.isSSL());
+        Socket socket = NetUtils.createSocket(server, Constants.DEFAULT_TCP_PORT, ci.isSSL(),
+                ci.getProperty("NETWORK_TIMEOUT", 0));
         Transfer trans = new Transfer(this, socket);
         trans.setSSL(ci.isSSL());
         trans.init();
@@ -137,19 +148,20 @@ public class SessionRemote extends SessionWithState implements DataHandler {
             done(trans);
             clientVersion = trans.readInt();
             trans.setVersion(clientVersion);
-            if (clientVersion >= Constants.TCP_PROTOCOL_VERSION_14) {
-                if (ci.getFileEncryptionKey() != null) {
-                    trans.writeBytes(ci.getFileEncryptionKey());
-                }
+            if (ci.getFileEncryptionKey() != null) {
+                trans.writeBytes(ci.getFileEncryptionKey());
             }
             trans.writeInt(SessionRemote.SESSION_SET_ID);
             trans.writeString(sessionId);
-            done(trans);
-            if (clientVersion >= Constants.TCP_PROTOCOL_VERSION_15) {
-                autoCommit = trans.readBoolean();
-            } else {
-                autoCommit = true;
+            if (clientVersion >= Constants.TCP_PROTOCOL_VERSION_20) {
+                TimeZoneProvider timeZone = ci.getTimeZone();
+                if (timeZone == null) {
+                    timeZone = DateTimeUtils.getTimeZone();
+                }
+                trans.writeString(timeZone.getId());
             }
+            done(trans);
+            autoCommit = trans.readBoolean();
             return trans;
         } catch (DbException e) {
             trans.close();
@@ -159,9 +171,6 @@ public class SessionRemote extends SessionWithState implements DataHandler {
 
     @Override
     public boolean hasPendingTransaction() {
-        if (clientVersion < Constants.TCP_PROTOCOL_VERSION_10) {
-            return true;
-        }
         for (int i = 0, count = 0; i < transferList.size(); i++) {
             Transfer transfer = transferList.get(i);
             try {
@@ -221,6 +230,11 @@ public class SessionRemote extends SessionWithState implements DataHandler {
         }
     }
 
+    /**
+     * Returns the TCP protocol version of remote connection.
+     *
+     * @return the TCP protocol version
+     */
     public int getClientVersion() {
         return clientVersion;
     }
@@ -250,17 +264,22 @@ public class SessionRemote extends SessionWithState implements DataHandler {
         }
     }
 
-    private synchronized void setAutoCommitSend(boolean autoCommit) {
-        for (int i = 0, count = 0; i < transferList.size(); i++) {
-            Transfer transfer = transferList.get(i);
-            try {
-                traceOperation("SESSION_SET_AUTOCOMMIT", autoCommit ? 1 : 0);
-                transfer.writeInt(SessionRemote.SESSION_SET_AUTOCOMMIT).
-                        writeBoolean(autoCommit);
-                done(transfer);
-            } catch (IOException e) {
-                removeServer(e, i--, ++count);
+    private void setAutoCommitSend(boolean autoCommit) {
+        lock();
+        try {
+            for (int i = 0, count = 0; i < transferList.size(); i++) {
+                Transfer transfer = transferList.get(i);
+                try {
+                    traceOperation("SESSION_SET_AUTOCOMMIT", autoCommit ? 1 : 0);
+                    transfer.writeInt(SessionRemote.SESSION_SET_AUTOCOMMIT).
+                            writeBoolean(autoCommit);
+                    done(transfer);
+                } catch (IOException e) {
+                    removeServer(e, i--, ++count);
+                }
             }
+        } finally {
+            unlock();
         }
     }
 
@@ -299,30 +318,18 @@ public class SessionRemote extends SessionWithState implements DataHandler {
         return buff.toString();
     }
 
-    @Override
-    public int getPowerOffCount() {
-        return 0;
-    }
-
-    @Override
-    public void setPowerOffCount(int count) {
-        throw DbException.getUnsupportedException("remote");
-    }
-
     /**
      * Open a new (remote or embedded) session.
      *
      * @param openNew whether to open a new session in any case
      * @return the session
      */
-    public SessionInterface connectEmbeddedOrServer(boolean openNew) {
+    public Session connectEmbeddedOrServer(boolean openNew) {
         ConnectionInfo ci = connectionInfo;
         if (ci.isRemote()) {
             connectServer(ci);
             return this;
         }
-        // create the session using reflection,
-        // so that the JDBC layer can be compiled without it
         boolean autoServerMode = ci.getProperty("AUTO_SERVER", false);
         ConnectionInfo backup = null;
         try {
@@ -333,11 +340,7 @@ public class SessionRemote extends SessionWithState implements DataHandler {
             if (openNew) {
                 ci.setProperty("OPEN_NEW", "true");
             }
-            if (sessionFactory == null) {
-                sessionFactory = (SessionFactory) Class.forName(
-                        "org.h2.engine.Engine").getMethod("getInstance").invoke(null);
-            }
-            return sessionFactory.createSession(ci);
+            return Engine.createSession(ci);
         } catch (Exception re) {
             DbException e = DbException.convert(re);
             if (e.getErrorCode() == ErrorCode.DATABASE_ALREADY_OPEN_1) {
@@ -410,7 +413,7 @@ public class SessionRemote extends SessionWithState implements DataHandler {
         if (autoReconnect) {
             String className = ci.getProperty("DATABASE_EVENT_LISTENER");
             if (className != null) {
-                className = StringUtils.trim(className, true, true, "'");
+                className = StringUtils.trim(className, true, true, '\'');
                 try {
                     eventListener = (DatabaseEventListener) JdbcUtils
                             .loadUserClass(className).getDeclaredConstructor().newInstance();
@@ -450,6 +453,7 @@ public class SessionRemote extends SessionWithState implements DataHandler {
             traceSystem.close();
             throw e;
         }
+        getDynamicSettings();
     }
 
     private void switchOffCluster() {
@@ -476,9 +480,14 @@ public class SessionRemote extends SessionWithState implements DataHandler {
     }
 
     @Override
-    public synchronized CommandInterface prepareCommand(String sql, int fetchSize) {
-        checkClosed();
-        return new CommandRemote(this, transferList, sql, fetchSize);
+    public CommandInterface prepareCommand(String sql, int fetchSize) {
+        lock();
+        try {
+            checkClosed();
+            return new CommandRemote(this, transferList, sql, fetchSize);
+        } finally {
+            unlock();
+        }
     }
 
     /**
@@ -549,7 +558,8 @@ public class SessionRemote extends SessionWithState implements DataHandler {
     public void close() {
         RuntimeException closeError = null;
         if (transferList != null) {
-            synchronized (this) {
+            lock();
+            try {
                 for (Transfer transfer : transferList) {
                     try {
                         traceOperation("SESSION_CLOSE", 0);
@@ -563,6 +573,8 @@ public class SessionRemote extends SessionWithState implements DataHandler {
                         trace.error(e, "close");
                     }
                 }
+            } finally {
+                unlock();
             }
             transferList = null;
         }
@@ -602,29 +614,45 @@ public class SessionRemote extends SessionWithState implements DataHandler {
     public void done(Transfer transfer) throws IOException {
         transfer.flush();
         int status = transfer.readInt();
-        if (status == STATUS_ERROR) {
-            String sqlstate = transfer.readString();
-            String message = transfer.readString();
-            String sql = transfer.readString();
-            int errorCode = transfer.readInt();
-            String stackTrace = transfer.readString();
-            SQLException s = DbException.getJdbcSQLException(message, sql, sqlstate, errorCode, null, stackTrace);
-            if (errorCode == ErrorCode.CONNECTION_BROKEN_1) {
-                // allow re-connect
-                throw new IOException(s.toString(), s);
-            }
-            throw DbException.convert(s);
-        } else if (status == STATUS_CLOSED) {
+        switch (status) {
+        case STATUS_ERROR:
+            throw readException(transfer);
+        case STATUS_OK:
+            break;
+        case STATUS_CLOSED:
             transferList = null;
-        } else if (status == STATUS_OK_STATE_CHANGED) {
+            break;
+        case STATUS_OK_STATE_CHANGED:
             sessionStateChanged = true;
             currentSchemaName = null;
-        } else if (status == STATUS_OK) {
-            // ok
-        } else {
-            throw DbException.get(ErrorCode.CONNECTION_BROKEN_1,
-                    "unexpected status " + status);
+            dynamicSettings = null;
+            break;
+        default:
+            throw DbException.get(ErrorCode.CONNECTION_BROKEN_1, "unexpected status " + status);
         }
+    }
+
+    /**
+     * Reads an exception.
+     *
+     * @param transfer
+     *            the transfer object
+     * @return the exception
+     * @throws IOException
+     *             on I/O exception
+     */
+    public static DbException readException(Transfer transfer) throws IOException {
+        String sqlstate = transfer.readString();
+        String message = transfer.readString();
+        String sql = transfer.readString();
+        int errorCode = transfer.readInt();
+        String stackTrace = transfer.readString();
+        SQLException s = DbException.getJdbcSQLException(message, sql, sqlstate, errorCode, null, stackTrace);
+        if (errorCode == ErrorCode.CONNECTION_BROKEN_1) {
+            // allow re-connect
+            throw new IOException(s.toString(), s);
+        }
+        return DbException.convert(s);
     }
 
     /**
@@ -666,11 +694,6 @@ public class SessionRemote extends SessionWithState implements DataHandler {
     @Override
     public String getDatabasePath() {
         return "";
-    }
-
-    @Override
-    public String getLobCompressionAlgorithm(int type) {
-        return null;
     }
 
     @Override
@@ -727,7 +750,7 @@ public class SessionRemote extends SessionWithState implements DataHandler {
     }
 
     @Override
-    public LobStorageInterface getLobStorage() {
+    public LobStorageFrontend getLobStorage() {
         if (lobStorage == null) {
             lobStorage = new LobStorageFrontend(this);
         }
@@ -735,89 +758,48 @@ public class SessionRemote extends SessionWithState implements DataHandler {
     }
 
     @Override
-    public synchronized int readLob(long lobId, byte[] hmac, long offset,
-            byte[] buff, int off, int length) {
-        checkClosed();
-        for (int i = 0, count = 0; i < transferList.size(); i++) {
-            Transfer transfer = transferList.get(i);
-            try {
-                traceOperation("LOB_READ", (int) lobId);
-                transfer.writeInt(SessionRemote.LOB_READ);
-                transfer.writeLong(lobId);
-                if (clientVersion >= Constants.TCP_PROTOCOL_VERSION_12) {
+    public int readLob(long lobId, byte[] hmac, long offset, byte[] buff, int off, int length) {
+        lock();
+        try {
+            checkClosed();
+            for (int i = 0, count = 0; i < transferList.size(); i++) {
+                Transfer transfer = transferList.get(i);
+                try {
+                    traceOperation("LOB_READ", (int) lobId);
+                    transfer.writeInt(SessionRemote.LOB_READ);
+                    transfer.writeLong(lobId);
                     transfer.writeBytes(hmac);
-                }
-                transfer.writeLong(offset);
-                transfer.writeInt(length);
-                done(transfer);
-                length = transfer.readInt();
-                if (length <= 0) {
+                    transfer.writeLong(offset);
+                    transfer.writeInt(length);
+                    done(transfer);
+                    length = transfer.readInt();
+                    if (length <= 0) {
+                        return length;
+                    }
+                    transfer.readBytes(buff, off, length);
                     return length;
+                } catch (IOException e) {
+                    removeServer(e, i--, ++count);
                 }
-                transfer.readBytes(buff, off, length);
-                return length;
-            } catch (IOException e) {
-                removeServer(e, i--, ++count);
             }
+            return 1;
+        } finally {
+            unlock();
         }
-        return 1;
     }
 
     @Override
     public JavaObjectSerializer getJavaObjectSerializer() {
-        initJavaObjectSerializer();
+        if (dynamicSettings == null) {
+            getDynamicSettings();
+        }
         return javaObjectSerializer;
     }
 
-    private void initJavaObjectSerializer() {
-        if (javaObjectSerializerInitialized) {
-            return;
-        }
-        synchronized (this) {
-            if (javaObjectSerializerInitialized) {
-                return;
-            }
-            String serializerFQN = readSerializationSettings();
-            if (serializerFQN != null) {
-                serializerFQN = serializerFQN.trim();
-                if (!serializerFQN.isEmpty() && !serializerFQN.equals("null")) {
-                    try {
-                        javaObjectSerializer = (JavaObjectSerializer) JdbcUtils
-                                .loadUserClass(serializerFQN).getDeclaredConstructor().newInstance();
-                    } catch (Exception e) {
-                        throw DbException.convert(e);
-                    }
-                }
-            }
-            javaObjectSerializerInitialized = true;
-        }
-    }
-
-    /**
-     * Read the serializer name from the persistent database settings.
-     *
-     * @return the serializer
-     */
-    private String readSerializationSettings() {
-        String javaObjectSerializerFQN = null;
-        CommandInterface ci = prepareCommand(
-                "SELECT VALUE FROM INFORMATION_SCHEMA.SETTINGS "+
-                " WHERE NAME='JAVA_OBJECT_SERIALIZER'", Integer.MAX_VALUE);
-        try {
-            ResultInterface result = ci.executeQuery(0, false);
-            if (result.next()) {
-                Value[] row = result.currentRow();
-                javaObjectSerializerFQN = row[0].getString();
-            }
-        } finally {
-            ci.close();
-        }
-        return javaObjectSerializerFQN;
-    }
-
     @Override
-    public void addTemporaryLob(Value v) {
+    public ValueLob addTemporaryLob(ValueLob v) {
         // do nothing
+        return v;
     }
 
     @Override
@@ -834,30 +816,33 @@ public class SessionRemote extends SessionWithState implements DataHandler {
     public String getCurrentSchemaName() {
         String schema = currentSchemaName;
         if (schema == null) {
-            synchronized (this) {
+            lock();
+            try {
                 try (CommandInterface command = prepareCommand("CALL SCHEMA()", 1);
                         ResultInterface result = command.executeQuery(1, false)) {
                     result.next();
                     currentSchemaName = schema = result.currentRow()[0].getString();
                 }
+            } finally {
+                unlock();
             }
         }
         return schema;
     }
 
     @Override
-    public synchronized void setCurrentSchemaName(String schema) {
-        currentSchemaName = null;
-        try (CommandInterface command = prepareCommand(
-                StringUtils.quoteIdentifier(new StringBuilder("SET SCHEMA "), schema).toString(), 0)) {
-            command.executeUpdate(null);
-            currentSchemaName = schema;
+    public void setCurrentSchemaName(String schema) {
+        lock();
+        try {
+            currentSchemaName = null;
+            try (CommandInterface command = prepareCommand(
+                    StringUtils.quoteIdentifier(new StringBuilder("SET SCHEMA "), schema).toString(), 0)) {
+                command.executeUpdate(null);
+                currentSchemaName = schema;
+            }
+        } finally {
+            unlock();
         }
-    }
-
-    @Override
-    public boolean isSupportsGeneratedKeys() {
-        return getClientVersion() >= Constants.TCP_PROTOCOL_VERSION_17;
     }
 
     @Override
@@ -867,9 +852,10 @@ public class SessionRemote extends SessionWithState implements DataHandler {
 
     @Override
     public IsolationLevel getIsolationLevel() {
-        if (getClientVersion() >= Constants.TCP_PROTOCOL_VERSION_19) {
-            try (CommandInterface command = prepareCommand(
-                    "SELECT ISOLATION_LEVEL FROM INFORMATION_SCHEMA.SESSIONS WHERE ID = SESSION_ID()", 1);
+        if (clientVersion >= Constants.TCP_PROTOCOL_VERSION_19) {
+            try (CommandInterface command = prepareCommand(!isOldInformationSchema()
+                    ? "SELECT ISOLATION_LEVEL FROM INFORMATION_SCHEMA.SESSIONS WHERE SESSION_ID = SESSION_ID()"
+                    : "SELECT ISOLATION_LEVEL FROM INFORMATION_SCHEMA.SESSIONS WHERE ID = SESSION_ID()", 1);
                     ResultInterface result = command.executeQuery(1, false)) {
                 result.next();
                 return IsolationLevel.fromSql(result.currentRow()[0].getString());
@@ -885,17 +871,142 @@ public class SessionRemote extends SessionWithState implements DataHandler {
 
     @Override
     public void setIsolationLevel(IsolationLevel isolationLevel) {
-        if (getClientVersion() >= Constants.TCP_PROTOCOL_VERSION_19) {
+        if (clientVersion >= Constants.TCP_PROTOCOL_VERSION_19) {
             try (CommandInterface command = prepareCommand(
                     "SET SESSION CHARACTERISTICS AS TRANSACTION ISOLATION LEVEL " + isolationLevel.getSQL(), 0)) {
                 command.executeUpdate(null);
             }
         } else {
             try (CommandInterface command = prepareCommand("SET LOCK_MODE ?", 0)) {
-                command.getParameters().get(0).setValue(ValueInt.get(isolationLevel.getLockMode()), false);
+                command.getParameters().get(0).setValue(ValueInteger.get(isolationLevel.getLockMode()), false);
                 command.executeUpdate(null);
             }
         }
+    }
+
+    @Override
+    public StaticSettings getStaticSettings() {
+        StaticSettings settings = staticSettings;
+        if (settings == null) {
+            boolean databaseToUpper = true, databaseToLower = false, caseInsensitiveIdentifiers = false;
+            try (CommandInterface command = getSettingsCommand(" IN (?, ?, ?)")) {
+                ArrayList<? extends ParameterInterface> parameters = command.getParameters();
+                parameters.get(0).setValue(ValueVarchar.get("DATABASE_TO_UPPER"), false);
+                parameters.get(1).setValue(ValueVarchar.get("DATABASE_TO_LOWER"), false);
+                parameters.get(2).setValue(ValueVarchar.get("CASE_INSENSITIVE_IDENTIFIERS"), false);
+                try (ResultInterface result = command.executeQuery(0, false)) {
+                    while (result.next()) {
+                        Value[] row = result.currentRow();
+                        String value = row[1].getString();
+                        switch (row[0].getString()) {
+                        case "DATABASE_TO_UPPER":
+                            databaseToUpper = Boolean.valueOf(value);
+                            break;
+                        case "DATABASE_TO_LOWER":
+                            databaseToLower = Boolean.valueOf(value);
+                            break;
+                        case "CASE_INSENSITIVE_IDENTIFIERS":
+                            caseInsensitiveIdentifiers = Boolean.valueOf(value);
+                        }
+                    }
+                }
+            }
+            if (clientVersion < Constants.TCP_PROTOCOL_VERSION_18) {
+                caseInsensitiveIdentifiers = !databaseToUpper;
+            }
+            staticSettings = settings = new StaticSettings(databaseToUpper, databaseToLower,
+                    caseInsensitiveIdentifiers);
+        }
+        return settings;
+    }
+
+    @Override
+    public DynamicSettings getDynamicSettings() {
+        DynamicSettings settings = dynamicSettings;
+        if (settings == null) {
+            String modeName = ModeEnum.REGULAR.name();
+            TimeZoneProvider timeZone = DateTimeUtils.getTimeZone();
+            String javaObjectSerializerName = null;
+            try (CommandInterface command = getSettingsCommand(" IN (?, ?, ?)")) {
+                ArrayList<? extends ParameterInterface> parameters = command.getParameters();
+                parameters.get(0).setValue(ValueVarchar.get("MODE"), false);
+                parameters.get(1).setValue(ValueVarchar.get("TIME ZONE"), false);
+                parameters.get(2).setValue(ValueVarchar.get("JAVA_OBJECT_SERIALIZER"), false);
+                try (ResultInterface result = command.executeQuery(0, false)) {
+                    while (result.next()) {
+                        Value[] row = result.currentRow();
+                        String value = row[1].getString();
+                        switch (row[0].getString()) {
+                        case "MODE":
+                            modeName = value;
+                            break;
+                        case "TIME ZONE":
+                            timeZone = TimeZoneProvider.ofId(value);
+                            break;
+                        case "JAVA_OBJECT_SERIALIZER":
+                            javaObjectSerializerName = value;
+                        }
+                    }
+                }
+            }
+            Mode mode = Mode.getInstance(modeName);
+            if (mode == null) {
+                mode = Mode.getRegular();
+            }
+            dynamicSettings = settings = new DynamicSettings(mode, timeZone);
+            if (javaObjectSerializerName != null
+                    && !(javaObjectSerializerName = javaObjectSerializerName.trim()).isEmpty()
+                    && !javaObjectSerializerName.equals("null")) {
+                try {
+                    javaObjectSerializer = (JavaObjectSerializer) JdbcUtils
+                            .loadUserClass(javaObjectSerializerName).getDeclaredConstructor().newInstance();
+                } catch (Exception e) {
+                    throw DbException.convert(e);
+                }
+            } else {
+                javaObjectSerializer = null;
+            }
+        }
+        return settings;
+    }
+
+    private CommandInterface getSettingsCommand(String args) {
+        return prepareCommand(
+                (!isOldInformationSchema()
+                        ? "SELECT SETTING_NAME, SETTING_VALUE FROM INFORMATION_SCHEMA.SETTINGS WHERE SETTING_NAME"
+                        : "SELECT NAME, `VALUE` FROM INFORMATION_SCHEMA.SETTINGS WHERE NAME") + args,
+                Integer.MAX_VALUE);
+    }
+
+    @Override
+    public ValueTimestampTimeZone currentTimestamp() {
+        return DateTimeUtils.currentTimestamp(getDynamicSettings().timeZone);
+    }
+
+    @Override
+    public TimeZoneProvider currentTimeZone() {
+        return getDynamicSettings().timeZone;
+    }
+
+    @Override
+    public Mode getMode() {
+        return getDynamicSettings().mode;
+    }
+
+    @Override
+    public DatabaseMeta getDatabaseMeta() {
+        return clientVersion >= Constants.TCP_PROTOCOL_VERSION_20 ? new DatabaseMetaRemote(this, transferList)
+                : new DatabaseMetaLegacy(this);
+    }
+
+    @Override
+    public boolean isOldInformationSchema() {
+        return oldInformationSchema || clientVersion < Constants.TCP_PROTOCOL_VERSION_20;
+    }
+
+    @Override
+    public boolean zeroBasedEnums() {
+        return false;
     }
 
 }

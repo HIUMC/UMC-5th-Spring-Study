@@ -1,5 +1,5 @@
 /*
- * Copyright 2004-2019 H2 Group. Multiple-Licensed under the MPL 2.0,
+ * Copyright 2004-2023 H2 Group. Multiple-Licensed under the MPL 2.0,
  * and the EPL 1.0 (https://h2database.com/html/license.html).
  * Initial Developer: H2 Group
  */
@@ -9,9 +9,9 @@ import java.util.ArrayList;
 import org.h2.api.ErrorCode;
 import org.h2.command.CommandInterface;
 import org.h2.constraint.ConstraintActionType;
+import org.h2.engine.Database;
 import org.h2.engine.DbObject;
-import org.h2.engine.Right;
-import org.h2.engine.Session;
+import org.h2.engine.SessionLocal;
 import org.h2.message.DbException;
 import org.h2.schema.Schema;
 import org.h2.table.Table;
@@ -28,9 +28,9 @@ public class DropView extends SchemaCommand {
     private boolean ifExists;
     private ConstraintActionType dropAction;
 
-    public DropView(Session session, Schema schema) {
+    public DropView(SessionLocal session, Schema schema) {
         super(session, schema);
-        dropAction = session.getDatabase().getSettings().dropRestrict ?
+        dropAction = getDatabase().getSettings().dropRestrict ?
                 ConstraintActionType.RESTRICT :
                 ConstraintActionType.CASCADE;
     }
@@ -48,8 +48,7 @@ public class DropView extends SchemaCommand {
     }
 
     @Override
-    public int update() {
-        session.commit(true);
+    public long update() {
         Table view = getSchema().findTableOrView(session, viewName);
         if (view == null) {
             if (!ifExists) {
@@ -59,7 +58,7 @@ public class DropView extends SchemaCommand {
             if (TableType.VIEW != view.getTableType()) {
                 throw DbException.get(ErrorCode.VIEW_NOT_FOUND_1, viewName);
             }
-            session.getUser().checkRight(view, Right.ALL);
+            session.getUser().checkSchemaOwner(view.getSchema());
 
             if (dropAction == ConstraintActionType.RESTRICT) {
                 for (DbObject child : view.getChildren()) {
@@ -75,20 +74,21 @@ public class DropView extends SchemaCommand {
             TableView tableView = (TableView) view;
             ArrayList<Table> copyOfDependencies = new ArrayList<>(tableView.getTables());
 
-            view.lock(session, true, true);
-            session.getDatabase().removeSchemaObject(session, view);
+            view.lock(session, Table.EXCLUSIVE_LOCK);
+            Database database = getDatabase();
+            database.removeSchemaObject(session, view);
 
             // remove dependent table expressions
             for (Table childTable: copyOfDependencies) {
                 if (TableType.VIEW == childTable.getTableType()) {
                     TableView childTableView = (TableView) childTable;
                     if (childTableView.isTableExpression() && childTableView.getName() != null) {
-                        session.getDatabase().removeSchemaObject(session, childTableView);
+                        database.removeSchemaObject(session, childTableView);
                     }
                 }
             }
             // make sure its all unlocked
-            session.getDatabase().unlockMeta(session);
+            database.unlockMeta(session);
         }
         return 0;
     }

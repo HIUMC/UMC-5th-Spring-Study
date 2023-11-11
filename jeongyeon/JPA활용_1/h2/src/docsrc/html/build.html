@@ -1,6 +1,6 @@
 <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
 <!--
-Copyright 2004-2019 H2 Group. Multiple-Licensed under the MPL 2.0,
+Copyright 2004-2023 H2 Group. Multiple-Licensed under the MPL 2.0,
 and the EPL 1.0 (https://h2database.com/html/license.html).
 Initial Developer: H2 Group
 -->
@@ -25,10 +25,10 @@ Build
     Environment</a><br />
 <a href="#building">
     Building the Software</a><br />
-<a href="#build_targets">
-    Build Targets</a><br />
 <a href="#maven2">
     Using Maven 2</a><br />
+<a href="#native_image">
+    Native Image</a><br />
 <a href="#using_eclipse">
     Using Eclipse</a><br />
 <a href="#translating">
@@ -49,29 +49,29 @@ This database is written in Java and therefore works on many platforms.
 
 <h2 id="environment">Environment</h2>
 <p>
-To run this database, a Java Runtime Environment (JRE) version 7 or higher is required.
+To run this database, a Java Runtime Environment (JRE) version 8 or higher is required.
+It it also possible to compile a standalone executable with
+experimental <a href="#native_image">native image</a> build.
 </p>
 <p>
 To create the database executables, the following software stack was used.
 To use this database, it is not required to install this software however.
 </p>
 <ul><li>Mac OS X and Windows
-</li><li><a href="http://www.oracle.com/technetwork/java/javase/downloads/index.html">Oracle JDK Version 7</a>
-(version 7 is not available for free download any more)
-</li><li><a href="http://www.eclipse.org">Eclipse</a>
+</li><li><a href="https://www.oracle.com/technetwork/java/javase/downloads/index.html">Oracle JDK Version 8</a>
+</li><li><a href="https://www.eclipse.org">Eclipse</a>
 </li><li>Eclipse Plugins:
-    <a href="http://subclipse.tigris.org">Subclipse</a>,
     <a href="https://checkstyle.github.io/eclipse-cs/">Eclipse Checkstyle Plug-in</a>,
-    <a href="http://www.eclemma.org">EclEmma Java Code Coverage</a>
+    <a href="https://www.eclemma.org">EclEmma Java Code Coverage</a>
 </li><li><a href="https://www.mozilla.com/firefox">Mozilla Firefox</a>
-</li><li><a href="http://www.openoffice.org">OpenOffice</a>
-</li><li><a href="http://nsis.sourceforge.net">NSIS</a> (Nullsoft Scriptable Install System)
-</li><li><a href="http://maven.apache.org">Maven</a>
+</li><li><a href="https://www.openoffice.org">OpenOffice</a>
+</li><li><a href="https://nsis.sourceforge.net">NSIS</a> (Nullsoft Scriptable Install System)
+</li><li><a href="https://maven.apache.org">Maven</a>
 </li></ul>
 
 <h2 id="building">Building the Software</h2>
 <p>
-You need to install a JDK, for example the Oracle JDK version 7 or 8.
+You need to install a JDK, for example the Oracle JDK version 8.
 Ensure that Java binary directory is included in the <code>PATH</code> environment variable, and that
 the environment variable <code>JAVA_HOME</code> points to your Java installation.
 On the command line, go to the directory <code>h2</code> and execute the following command:
@@ -95,28 +95,9 @@ To run the build tool in shell mode, use the command line option <code>-</code>:
 ./build.sh -
 </pre>
 
-<h2 id="build_targets">Build Targets</h2>
-<p>
-The build system can generate smaller jar files as well. The following targets are currently supported:
-</p>
-<ul><li><code>jarClient</code>
-    creates the file <code>h2client.jar</code>. This only contains the JDBC client.
-</li><li><code>jarSmall</code>
-    creates the file <code>h2small.jar</code>.
-    This only contains the embedded database. Debug information is disabled.
-</li><li><code>javadocImpl</code> creates the Javadocs of the implementation.
-</li></ul>
-<p>
-To create the file <code>h2client.jar</code>, go to the directory <code>h2</code> and execute the following command:
-</p>
-<pre>
-build jarClient
-</pre>
-
 <h3>Using Apache Lucene</h3>
 <p>
-Apache Lucene 5.5.5 is used for testing.
-Newer versions up to 8.0.* can also be used.
+Apache Lucene 8.5.2 is used for testing.
 </p>
 
 <h2 id="maven2">Using Maven 2</h2>
@@ -134,7 +115,7 @@ Example:
 </pre>
 <p>
 New versions of this database are first uploaded to http://hsql.sourceforge.net/m2-repo/ and then automatically
-synchronized with the main <a href="http://repo2.maven.org/maven2/com/h2database/h2/">Maven repository</a>;
+synchronized with the main <a href="https://repo1.maven.org/maven2/com/h2database/h2/">Maven repository</a>;
 however after a new release it may take a few hours before they are available there.
 </p>
 <h3>Maven Plugin to Start and Stop the TCP Server</h3>
@@ -171,11 +152,39 @@ Afterwards, you can include the database in your Maven 2 project as a dependency
 &lt;/dependency&gt;
 </pre>
 
+<h2 id="native_image">Native Image</h2>
+
+<p>
+There is an experimental support for compilation of native executables with native-image tool.
+To build an executable with H2 install GraalVM and use its updater to get the native-image tool:
+</p>
+<pre>
+gu install native-image
+</pre>
+This tool can be used for compilation of native executables:
+<pre>
+native-image --no-fallback -jar h2-VERSION.jar h2
+</pre>
+
+<p>Known limitations:</p>
+<ul><li>
+If <code>--no-fallback</code> parameter was specified, system tray icon may not appear
+even if <code>-Djava.awt.headless=false</code> parameter of native-image tool was used,
+because native-image doesn't add all necessary configuration for working GUI.
+</li><li>
+If <code>--no-fallback</code> parameter was specified,
+user-defined functions and triggers need an additional configuration.
+</li><li>
+JAVA_OBJECT data type wasn't tested and may not work at all.
+</li><li>
+Third-party loggers, ICU4J collators, and fulltext search weren't tested.
+</li></ul>
+
 <h2 id="using_eclipse">Using Eclipse</h2>
 <p>
 To create an Eclipse project for H2, use the following steps:
 </p>
-<ul><li>Install Git and <a href="http://www.eclipse.org">Eclipse</a>.
+<ul><li>Install Git and <a href="https://www.eclipse.org">Eclipse</a>.
 </li><li>Get the H2 source code from Github:<br />
     <code>git clone https://github.com/h2database/h2database</code>
 </li><li>Download all dependencies:<br />
@@ -206,7 +215,7 @@ The web site is currently translated using Google.
 <p>
 If you'd like to contribute bug fixes or new features, please consider the following guidelines to simplify merging them:
 </p>
-<ul><li>Only use Java 7 features (do not use Java 8/9/etc) (see <a href="#environment">Environment</a>).
+<ul><li>Only use Java 8 features (do not use Java 9/10/etc) (see <a href="#environment">Environment</a>).
 </li><li>Follow the coding style used in the project, and use Checkstyle (see above) to verify.
     For example, do not use tabs (use spaces instead).
     The checkstyle configuration is in <code>src/installer/checkstyle.xml</code>.
@@ -223,7 +232,7 @@ If you'd like to contribute bug fixes or new features, please consider the follo
 </li><li>Verify that you did not break other features: run the test cases by executing
     <code>build test</code>.
 </li><li>Provide end user documentation if required (<code>src/docsrc/html/*</code>).
-</li><li>Document grammar changes in <code>src/docsrc/help/help.csv</code>
+</li><li>Document grammar changes in <code>src/main/org/h2/res/help.csv</code>
 </li><li>Provide a change log entry (<code>src/docsrc/html/changelog.html</code>).
 </li><li>Verify the spelling using <code>build spellcheck</code>. If required
     add the new words to <code>src/tools/org/h2/build/doc/dictionary.txt</code>.
@@ -237,7 +246,7 @@ If you'd like to contribute bug fixes or new features, please consider the follo
 <p>
 For legal reasons, patches need to be public in the form of an
     <a href="https://github.com/h2database/h2database/issues">issue report or attachment</a> or in the form of an email
-    to the <a href="https://groups.google.com/group/h2-database">group</a>.
+    to the <a href="https://groups.google.com/g/h2-database">group</a>.
 Significant contributions need to include the following statement:
 </p>
 <p>
@@ -254,7 +263,8 @@ or if  you have a feature request:
 <ul><li>For bug reports, please provide a
     <a href="http://sscce.org/">short, self contained, correct (compilable), example</a> of the problem.
 </li><li>Feature requests are always welcome, even if the feature is already on the
-    <a href="https://h2database.com/html/roadmap.html">roadmap</a>. Your mail will help prioritize feature requests.
+    <a href="https://github.com/h2database/h2database/issues?q=is%3Aissue+is%3Aopen+label%3Aenhancement">issue tracker</a>
+    you can comment it.
     If you urgently need a feature, consider <a href="#providing_patches">providing a patch</a>.
 </li><li>Before posting problems, check the
     <a href="faq.html">FAQ</a> and do a <a href="http://google.com">Google search</a>.
@@ -264,7 +274,7 @@ or if  you have a feature request:
     and the root cause stack trace(s).
 </li><li>When sending source code, please use a public web clipboard such as
     <a href="https://pastebin.com/">Pastebin</a> or
-    <a href="http://www.mysticpaste.com/new">Mystic Paste</a>
+    <a href="https://mysticpaste.com/new">Mystic Paste</a>
     to avoid formatting problems.
     Please keep test cases as simple and short as possible,
     but so that the problem can still be reproduced.
@@ -279,7 +289,7 @@ or if  you have a feature request:
     <a href="https://www.google.com/drive/">Google Drive</a>.
 </li><li>Google Group versus issue tracking:
     Use the
-    <a href="http://groups.google.com/group/h2-database">Google Group</a>
+    <a href="https://groups.google.com/g/h2-database">Google Group</a>
     for questions or if you are not sure it's a bug.
     If you are sure it's a bug, you can create an
     <a href="https://github.com/h2database/h2database/issues">issue</a>,
@@ -290,7 +300,7 @@ or if  you have a feature request:
     <code>-XX:+HeapDumpOnOutOfMemoryError</code>
     (to create a heap dump file on out of memory)
     and a memory analysis tool such as the
-    <a href="http://www.eclipse.org/mat">Eclipse Memory Analyzer (MAT)</a>.
+    <a href="https://www.eclipse.org/mat/">Eclipse Memory Analyzer (MAT)</a>.
 </li><li>It may take a few days to get an answers. Please do not double post.
 </li></ul>
 
@@ -298,8 +308,8 @@ or if  you have a feature request:
 <p>
 This build process is automated and runs regularly.
 The build process includes running the tests and code coverage, using the command line
-<code>./build.sh jar testTravis</code>.
-The results are available on <a href="https://travis-ci.org/h2database/h2database/branches">Travis CI</a>.
+<code>./build.sh jar testCI</code>.
+The results are available on <a href="https://github.com/h2database/h2database/actions?query=workflow%3ACI">CI workflow</a> page.
 </p>
 
 <h2 id="railroad">Generating Railroad Diagrams</h2>

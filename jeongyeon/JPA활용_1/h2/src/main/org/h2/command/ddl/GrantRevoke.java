@@ -1,5 +1,5 @@
 /*
- * Copyright 2004-2019 H2 Group. Multiple-Licensed under the MPL 2.0,
+ * Copyright 2004-2023 H2 Group. Multiple-Licensed under the MPL 2.0,
  * and the EPL 1.0 (https://h2database.com/html/license.html).
  * Initial Developer: H2 Group
  */
@@ -14,7 +14,8 @@ import org.h2.engine.DbObject;
 import org.h2.engine.Right;
 import org.h2.engine.RightOwner;
 import org.h2.engine.Role;
-import org.h2.engine.Session;
+import org.h2.engine.SessionLocal;
+import org.h2.engine.User;
 import org.h2.message.DbException;
 import org.h2.schema.Schema;
 import org.h2.table.Table;
@@ -36,7 +37,7 @@ public class GrantRevoke extends DefineCommand {
     private Schema schema;
     private RightOwner grantee;
 
-    public GrantRevoke(Session session) {
+    public GrantRevoke(SessionLocal session) {
         super(session);
     }
 
@@ -66,22 +67,19 @@ public class GrantRevoke extends DefineCommand {
     }
 
     public void setGranteeName(String granteeName) {
-        Database db = session.getDatabase();
-        grantee = db.findUser(granteeName);
+        Database db = getDatabase();
+        grantee = db.findUserOrRole(granteeName);
         if (grantee == null) {
-            grantee = db.findRole(granteeName);
-            if (grantee == null) {
-                throw DbException.get(ErrorCode.USER_OR_ROLE_NOT_FOUND_1, granteeName);
-            }
+            throw DbException.get(ErrorCode.USER_OR_ROLE_NOT_FOUND_1, granteeName);
         }
     }
 
     @Override
-    public int update() {
-        session.getUser().checkAdmin();
-        session.commit(true);
-        Database db = session.getDatabase();
+    public long update() {
+        Database db = getDatabase();
+        User user = session.getUser();
         if (roleNames != null) {
+            user.checkAdmin();
             for (String name : roleNames) {
                 Role grantedRole = db.findRole(name);
                 if (grantedRole == null) {
@@ -92,16 +90,26 @@ public class GrantRevoke extends DefineCommand {
                 } else if (operationType == CommandInterface.REVOKE) {
                     revokeRole(grantedRole);
                 } else {
-                    DbException.throwInternalError("type=" + operationType);
+                    throw DbException.getInternalError("type=" + operationType);
                 }
             }
         } else {
+            if ((rightMask & Right.ALTER_ANY_SCHEMA) != 0) {
+                user.checkAdmin();
+            } else {
+                if (schema != null) {
+                    user.checkSchemaOwner(schema);
+                }
+                for (Table table : tables) {
+                    user.checkSchemaOwner(table.getSchema());
+                }
+            }
             if (operationType == CommandInterface.GRANT) {
                 grantRight();
             } else if (operationType == CommandInterface.REVOKE) {
                 revokeRight();
             } else {
-                DbException.throwInternalError("type=" + operationType);
+                throw DbException.getInternalError("type=" + operationType);
             }
         }
         return 0;
@@ -117,10 +125,13 @@ public class GrantRevoke extends DefineCommand {
     }
 
     private void grantRight(DbObject object) {
-        Database db = session.getDatabase();
+        Database db = getDatabase();
         Right right = grantee.getRightForObject(object);
         if (right == null) {
-            int id = getObjectId();
+            int id = getPersistedObjectId();
+            if (id == 0) {
+                id = getDatabase().allocateObjectId();
+            }
             right = new Right(db, id, grantee, rightMask, object);
             grantee.grantRight(object, right);
             db.addDatabaseObject(session, right);
@@ -138,10 +149,10 @@ public class GrantRevoke extends DefineCommand {
             Role granteeRole = (Role) grantee;
             if (grantedRole.isRoleGranted(granteeRole)) {
                 // cyclic role grants are not allowed
-                throw DbException.get(ErrorCode.ROLE_ALREADY_GRANTED_1, grantedRole.getSQL(false));
+                throw DbException.get(ErrorCode.ROLE_ALREADY_GRANTED_1, grantedRole.getTraceSQL());
             }
         }
-        Database db = session.getDatabase();
+        Database db = getDatabase();
         int id = getObjectId();
         Right right = new Right(db, id, grantee, grantedRole);
         db.addDatabaseObject(session, right);
@@ -164,7 +175,7 @@ public class GrantRevoke extends DefineCommand {
         }
         int mask = right.getRightMask();
         int newRight = mask & ~rightMask;
-        Database db = session.getDatabase();
+        Database db = getDatabase();
         if (newRight == 0) {
             db.removeDatabaseObject(session, right);
         } else {
@@ -179,7 +190,7 @@ public class GrantRevoke extends DefineCommand {
         if (right == null) {
             return;
         }
-        Database db = session.getDatabase();
+        Database db = getDatabase();
         db.removeDatabaseObject(session, right);
     }
 
@@ -211,17 +222,4 @@ public class GrantRevoke extends DefineCommand {
         return operationType;
     }
 
-    /**
-     * @return true if this command is using Roles
-     */
-    public boolean isRoleMode() {
-        return roleNames != null;
-    }
-
-    /**
-     * @return true if this command is using Rights
-     */
-    public boolean isRightMode() {
-        return rightMask != 0;
-    }
 }

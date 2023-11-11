@@ -1,5 +1,5 @@
 /*
- * Copyright 2004-2019 H2 Group. Multiple-Licensed under the MPL 2.0,
+ * Copyright 2004-2023 H2 Group. Multiple-Licensed under the MPL 2.0,
  * and the EPL 1.0 (https://h2database.com/html/license.html).
  * Initial Developer: H2 Group
  */
@@ -57,7 +57,7 @@ public class TestBatchUpdates extends TestDb {
      * @param a ignored
      */
     public static void main(String... a) throws Exception {
-        TestBase.createCaller().init().test();
+        TestBase.createCaller().init().testFromMain();
     }
 
     @Override
@@ -115,8 +115,7 @@ public class TestBatchUpdates extends TestDb {
         deleteDb("batchUpdates");
         conn = getConnection("batchUpdates");
         stat = conn.createStatement();
-        stat.execute("CREATE ALIAS updatePrices FOR \"" +
-                getClass().getName() + ".updatePrices\"");
+        stat.execute("CREATE ALIAS updatePrices FOR '" + getClass().getName() + ".updatePrices'");
         CallableStatement call = conn.prepareCall("{call updatePrices(?, ?)}");
         call.setString(1, "Hello");
         call.setFloat(2, 1.4f);
@@ -154,12 +153,7 @@ public class TestBatchUpdates extends TestDb {
             prep.setString(1, "x");
             prep.addBatch();
         }
-        try {
-            prep.executeBatch();
-            fail();
-        } catch (BatchUpdateException e) {
-            // expected
-        }
+        assertThrows(BatchUpdateException.class, prep).executeBatch();
         conn.close();
     }
 

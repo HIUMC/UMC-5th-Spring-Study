@@ -1,4 +1,4 @@
--- Copyright 2004-2019 H2 Group. Multiple-Licensed under the MPL 2.0,
+-- Copyright 2004-2023 H2 Group. Multiple-Licensed under the MPL 2.0,
 -- and the EPL 1.0 (https://h2database.com/html/license.html).
 -- Initial Developer: H2 Group
 --
@@ -30,7 +30,7 @@ select array_contains(ARRAY[ARRAY[1, 2], ARRAY[3, 4]], ARRAY[1, 2]);
 select array_contains(ARRAY[ARRAY[1, 2], ARRAY[3, 4]], ARRAY[5, 6]);
 >> FALSE
 
-CREATE TABLE TEST (ID INT PRIMARY KEY AUTO_INCREMENT, A ARRAY);
+CREATE TABLE TEST (ID INT PRIMARY KEY AUTO_INCREMENT, A INT ARRAY);
 > ok
 
 INSERT INTO TEST (A) VALUES (ARRAY[1L, 2L]), (ARRAY[3L, 4L]);

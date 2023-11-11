@@ -1,5 +1,5 @@
 /*
- * Copyright 2004-2019 H2 Group. Multiple-Licensed under the MPL 2.0,
+ * Copyright 2004-2023 H2 Group. Multiple-Licensed under the MPL 2.0,
  * and the EPL 1.0 (https://h2database.com/html/license.html).
  * Initial Developer: H2 Group
  */
@@ -12,6 +12,7 @@ import java.math.BigDecimal;
 import java.sql.Blob;
 import java.sql.Connection;
 import java.sql.Date;
+import java.sql.JDBCType;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
@@ -20,14 +21,15 @@ import java.sql.Statement;
 import java.sql.Time;
 import java.sql.Timestamp;
 import java.sql.Types;
+import java.time.LocalDate;
+import java.time.LocalTime;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 
 import org.h2.api.ErrorCode;
-import org.h2.api.TimestampWithTimeZone;
-import org.h2.engine.SysProperties;
+import org.h2.api.H2Type;
 import org.h2.test.TestBase;
 import org.h2.test.TestDb;
-import org.h2.util.DateTimeUtils;
-import org.h2.util.JSR310;
 
 /**
  * Updatable result set tests.
@@ -40,7 +42,7 @@ public class TestUpdatableResultSet extends TestDb {
      * @param a ignored
      */
     public static void main(String... a) throws Exception {
-        TestBase.createCaller().init().test();
+        TestBase.createCaller().init().testFromMain();
     }
 
     @Override
@@ -51,6 +53,7 @@ public class TestUpdatableResultSet extends TestDb {
         testUpdateDeleteInsert();
         testUpdateDataType();
         testUpdateResetRead();
+        testUpdateObject();
         deleteDb("updatableResultSet");
     }
 
@@ -68,6 +71,8 @@ public class TestUpdatableResultSet extends TestDb {
         rs = stat.executeQuery("select name from test");
         assertEquals(ResultSet.CONCUR_READ_ONLY, rs.getConcurrency());
         stat.execute("drop table test");
+        rs = stat.executeQuery("SELECT");
+        assertEquals(ResultSet.CONCUR_READ_ONLY, rs.getConcurrency());
 
         stat.execute("create table test(a int, b int, " +
                 "name varchar, primary key(a, b))");
@@ -300,7 +305,7 @@ public class TestUpdatableResultSet extends TestDb {
         Statement stat = conn.createStatement(ResultSet.TYPE_FORWARD_ONLY,
                 ResultSet.CONCUR_UPDATABLE);
         stat.execute("CREATE TABLE TEST(ID INT PRIMARY KEY, NAME VARCHAR(255), "
-                + "DEC DECIMAL(10,2), BOO BIT, BYE TINYINT, BIN BINARY(100), "
+                + "DEC DECIMAL(10,2), BOO BIT, BYE TINYINT, BIN VARBINARY(100), "
                 + "D DATE, T TIME, TS TIMESTAMP(9), TSTZ TIMESTAMP(9) WITH TIME ZONE, DB DOUBLE, R REAL, L BIGINT, "
                 + "O_I INT, SH SMALLINT, CL CLOB, BL BLOB)");
         final int clobIndex = 16, blobIndex = 17;
@@ -311,21 +316,17 @@ public class TestUpdatableResultSet extends TestDb {
         assertEquals("java.lang.String", meta.getColumnClassName(++c));
         assertEquals("java.math.BigDecimal", meta.getColumnClassName(++c));
         assertEquals("java.lang.Boolean", meta.getColumnClassName(++c));
-        assertEquals(SysProperties.OLD_RESULT_SET_GET_OBJECT ? "java.lang.Byte" : "java.lang.Integer",
-                meta.getColumnClassName(++c));
+        assertEquals("java.lang.Integer", meta.getColumnClassName(++c));
         assertEquals("[B", meta.getColumnClassName(++c));
         assertEquals("java.sql.Date", meta.getColumnClassName(++c));
         assertEquals("java.sql.Time", meta.getColumnClassName(++c));
         assertEquals("java.sql.Timestamp", meta.getColumnClassName(++c));
-        assertEquals(SysProperties.RETURN_OFFSET_DATE_TIME && JSR310.PRESENT //
-                ? "java.time.OffsetDateTime" : "org.h2.api.TimestampWithTimeZone", //
-                meta.getColumnClassName(++c));
+        assertEquals("java.time.OffsetDateTime", meta.getColumnClassName(++c));
         assertEquals("java.lang.Double", meta.getColumnClassName(++c));
         assertEquals("java.lang.Float", meta.getColumnClassName(++c));
         assertEquals("java.lang.Long", meta.getColumnClassName(++c));
         assertEquals("java.lang.Integer", meta.getColumnClassName(++c));
-        assertEquals(SysProperties.OLD_RESULT_SET_GET_OBJECT ? "java.lang.Short" : "java.lang.Integer",
-                meta.getColumnClassName(++c));
+        assertEquals("java.lang.Integer", meta.getColumnClassName(++c));
         assertEquals("java.sql.Clob", meta.getColumnClassName(++c));
         assertEquals("java.sql.Blob", meta.getColumnClassName(++c));
         rs.moveToInsertRow();
@@ -369,8 +370,8 @@ public class TestUpdatableResultSet extends TestDb {
         rs.updateTime("T", Time.valueOf("21:46:28"));
         rs.updateTimestamp("TS",
                 Timestamp.valueOf("2005-09-21 21:47:09.567890123"));
-        rs.updateObject("TSTZ",
-                new TimestampWithTimeZone(DateTimeUtils.dateValue(2005, 9, 21), 81_189_123_456_789L, 60 * 60));
+        rs.updateObject("TSTZ", OffsetDateTime.of(LocalDate.of(2005, 9, 21),
+                LocalTime.ofNanoOfDay(81_189_123_456_789L), ZoneOffset.ofHours(1)));
         rs.updateDouble("DB", 1.725);
         rs.updateFloat("R", 2.5f);
         rs.updateLong("L", Long.MAX_VALUE);
@@ -517,9 +518,7 @@ public class TestUpdatableResultSet extends TestDb {
         assertEquals("2005-09-21", rs.getDate(++c).toString());
         assertEquals("21:46:28", rs.getTime(++c).toString());
         assertEquals("2005-09-21 21:47:09.567890123", rs.getTimestamp(++c).toString());
-        assertEquals(SysProperties.RETURN_OFFSET_DATE_TIME && JSR310.PRESENT //
-                ? "2005-09-21T22:33:09.123456789+01:00" : "2005-09-21 22:33:09.123456789+01", //
-                rs.getObject(++c).toString());
+        assertEquals("2005-09-21T22:33:09.123456789+01:00", rs.getObject(++c).toString());
         assertTrue(rs.getDouble(++c) == 1.725);
         assertTrue(rs.getFloat(++c) == 2.5f);
         assertTrue(rs.getLong(++c) == Long.MAX_VALUE);
@@ -537,8 +536,8 @@ public class TestUpdatableResultSet extends TestDb {
         rs.updateDate(++c, Date.valueOf("2005-09-22"));
         rs.updateTime(++c, Time.valueOf("21:46:29"));
         rs.updateTimestamp(++c, Timestamp.valueOf("2005-09-21 21:47:10.111222333"));
-        rs.updateObject(++c, new TimestampWithTimeZone(DateTimeUtils.dateValue(2005, 9, 22), 10_111_222_333L,
-                2 * 60 * 60));
+        rs.updateObject(++c, OffsetDateTime.of(LocalDate.of(2005, 9, 22), LocalTime.ofNanoOfDay(10_111_222_333L),
+                ZoneOffset.ofHours(2)));
         rs.updateDouble(++c, 2.25);
         rs.updateFloat(++c, 3.5f);
         rs.updateLong(++c, Long.MAX_VALUE - 1);
@@ -568,9 +567,7 @@ public class TestUpdatableResultSet extends TestDb {
         assertEquals("2005-09-22", rs.getDate(++c).toString());
         assertEquals("21:46:29", rs.getTime(++c).toString());
         assertEquals("2005-09-21 21:47:10.111222333", rs.getTimestamp(++c).toString());
-        assertEquals(SysProperties.RETURN_OFFSET_DATE_TIME && JSR310.PRESENT //
-                ? "2005-09-22T00:00:10.111222333+02:00" : "2005-09-22 00:00:10.111222333+02", //
-                rs.getObject(++c).toString());
+        assertEquals("2005-09-22T00:00:10.111222333+02:00", rs.getObject(++c).toString());
         assertTrue(rs.getDouble(++c) == 2.25);
         assertTrue(rs.getFloat(++c) == 3.5f);
         assertTrue(rs.getLong(++c) == Long.MAX_VALUE - 1);
@@ -734,6 +731,89 @@ public class TestUpdatableResultSet extends TestDb {
             if (!error) {
                 throw e;
             }
+        }
+    }
+
+    private void testUpdateObject() throws SQLException {
+        deleteDb("updatableResultSet");
+        Connection conn = getConnection("updatableResultSet");
+        Statement stat = conn.createStatement();
+        stat.execute("CREATE TABLE TEST(ID INT PRIMARY KEY, V INT)");
+        PreparedStatement prep = conn.prepareStatement("INSERT INTO TEST VALUES (?1, ?1)");
+        for (int i = 1; i <= 12; i++) {
+            prep.setInt(1, i);
+            prep.executeUpdate();
+        }
+        prep = conn.prepareStatement("TABLE TEST ORDER BY ID", ResultSet.TYPE_FORWARD_ONLY,
+                ResultSet.CONCUR_UPDATABLE);
+        try (ResultSet rs = prep.executeQuery()) {
+            for (int i = 1; i <= 12; i++) {
+            rs.next();
+                assertEquals(i, rs.getInt(1));
+                assertEquals(i, rs.getInt(2));
+                testUpdateObjectUpdateRow(rs, i, i * 10);
+                rs.updateRow();
+            }
+            assertFalse(rs.next());
+        }
+        try (ResultSet rs = prep.executeQuery()) {
+            for (int i = 1; i <= 12; i++) {
+                assertTrue(rs.next());
+                assertEquals(i, rs.getInt(1));
+                assertEquals(i * 10, rs.getInt(2));
+                testUpdateObjectUpdateRow(rs, i, null);
+                rs.updateRow();
+            }
+            assertFalse(rs.next());
+        }
+        try (ResultSet rs = prep.executeQuery()) {
+            for (int i = 1; i <= 12; i++) {
+                assertTrue(rs.next());
+                assertEquals(i, rs.getInt(1));
+                assertNull(rs.getObject(2));
+            }
+            assertFalse(rs.next());
+        }
+        conn.close();
+    }
+
+    private static void testUpdateObjectUpdateRow(ResultSet rs, int method, Object value) throws SQLException {
+        switch (method) {
+        case 1:
+            rs.updateObject(2, value);
+            break;
+        case 2:
+            rs.updateObject("V", value);
+            break;
+        case 3:
+            rs.updateObject(2, value, 0);
+            break;
+        case 4:
+            rs.updateObject(2, value, JDBCType.INTEGER);
+            break;
+        case 5:
+            rs.updateObject(2, value, H2Type.INTEGER);
+            break;
+        case 6:
+            rs.updateObject("V", value, 0);
+            break;
+        case 7:
+            rs.updateObject("V", value, JDBCType.INTEGER);
+            break;
+        case 8:
+            rs.updateObject("V", value, H2Type.INTEGER);
+            break;
+        case 9:
+            rs.updateObject(2, value, JDBCType.INTEGER, 0);
+            break;
+        case 10:
+            rs.updateObject(2, value, H2Type.INTEGER, 0);
+            break;
+        case 11:
+            rs.updateObject("V", value, JDBCType.INTEGER, 0);
+            break;
+        case 12:
+            rs.updateObject("V", value, H2Type.INTEGER, 0);
         }
     }
 

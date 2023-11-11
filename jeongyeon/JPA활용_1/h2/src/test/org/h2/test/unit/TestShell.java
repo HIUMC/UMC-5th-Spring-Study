@@ -1,5 +1,5 @@
 /*
- * Copyright 2004-2019 H2 Group. Multiple-Licensed under the MPL 2.0,
+ * Copyright 2004-2023 H2 Group. Multiple-Licensed under the MPL 2.0,
  * and the EPL 1.0 (https://h2database.com/html/license.html).
  * Initial Developer: H2 Group
  */
@@ -13,9 +13,11 @@ import java.io.LineNumberReader;
 import java.io.PipedInputStream;
 import java.io.PipedOutputStream;
 import java.io.PrintStream;
+import java.nio.charset.StandardCharsets;
 import org.h2.test.TestBase;
 import org.h2.tools.Shell;
 import org.h2.util.Task;
+import org.h2.util.Utils10;
 
 /**
  * Test the shell tool.
@@ -40,27 +42,27 @@ public class TestShell extends TestBase {
      * @param a ignored
      */
     public static void main(String... a) throws Exception {
-        TestBase.createCaller().init().test();
+        TestBase.createCaller().init().testFromMain();
     }
 
     @Override
     public void test() throws Exception {
         Shell shell = new Shell();
         ByteArrayOutputStream buff = new ByteArrayOutputStream();
-        shell.setOut(new PrintStream(buff));
+        shell.setOut(new PrintStream(buff, false, "UTF-8"));
         shell.runTool("-url", "jdbc:h2:mem:", "-driver", "org.h2.Driver",
                 "-user", "sa", "-password", "sa", "-properties", "null",
                 "-sql", "select 'Hello ' || 'World' as hi");
-        String s = new String(buff.toByteArray());
+        String s = Utils10.byteArrayOutputStreamToString(buff, StandardCharsets.UTF_8);
         assertContains(s, "HI");
         assertContains(s, "Hello World");
         assertContains(s, "(1 row, ");
 
         shell = new Shell();
         buff = new ByteArrayOutputStream();
-        shell.setOut(new PrintStream(buff));
+        shell.setOut(new PrintStream(buff, false, "UTF-8"));
         shell.runTool("-help");
-        s = new String(buff.toByteArray());
+        s = Utils10.byteArrayOutputStreamToString(buff, StandardCharsets.UTF_8);
         assertContains(s,
                 "Interactive command line tool to access a database using JDBC.");
 
@@ -195,7 +197,7 @@ public class TestShell extends TestBase {
         testOut.println("list");
         read("sql> Result list mode is now on");
 
-        testOut.println("select 1 first, 2 second;");
+        testOut.println("select 1 first, 2 `second`;");
         read("sql> FIRST : 1");
         read("SECOND: 2");
         read("(1 row, ");

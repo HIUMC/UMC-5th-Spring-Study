@@ -1,5 +1,5 @@
 /*
- * Copyright 2004-2019 H2 Group. Multiple-Licensed under the MPL 2.0,
+ * Copyright 2004-2023 H2 Group. Multiple-Licensed under the MPL 2.0,
  * and the EPL 1.0 (https://h2database.com/html/license.html).
  * Initial Developer: H2 Group
  */
@@ -35,7 +35,7 @@ public class TestListener extends TestDb implements DatabaseEventListener {
      * @param a ignored
      */
     public static void main(String... a) throws Exception {
-        TestBase.createCaller().init().test();
+        TestBase.createCaller().init().testFromMain();
     }
 
     @Override
@@ -74,7 +74,7 @@ public class TestListener extends TestDb implements DatabaseEventListener {
     }
 
     @Override
-    public void setProgress(int state, String name, int current, int max) {
+    public void setProgress(int state, String name, long current, long max) {
         long time = System.nanoTime();
         if (state == lastState && time < last + TimeUnit.SECONDS.toNanos(1)) {
             return;
@@ -122,7 +122,6 @@ public class TestListener extends TestDb implements DatabaseEventListener {
         try (Connection conn = DriverManager.getConnection(databaseUrl,
                 getUser(), getPassword())) {
             conn.createStatement().execute("DROP TABLE TEST2");
-            conn.close();
         } catch (SQLException e) {
             e.printStackTrace();
         }
@@ -142,7 +141,6 @@ public class TestListener extends TestDb implements DatabaseEventListener {
         try (Connection conn = DriverManager.getConnection(databaseUrl,
                 getUser(), getPassword())) {
             conn.createStatement().execute("CREATE TABLE IF NOT EXISTS TEST2(ID INT)");
-            conn.close();
         } catch (SQLException e) {
             e.printStackTrace();
         }

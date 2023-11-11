@@ -1,5 +1,5 @@
 /*
- * Copyright 2004-2019 H2 Group. Multiple-Licensed under the MPL 2.0,
+ * Copyright 2004-2023 H2 Group. Multiple-Licensed under the MPL 2.0,
  * and the EPL 1.0 (https://h2database.com/html/license.html).
  * Initial Developer: H2 Group
  */
@@ -8,9 +8,9 @@ package org.h2.command.ddl;
 import java.util.ArrayList;
 import org.h2.api.ErrorCode;
 import org.h2.command.CommandInterface;
-import org.h2.command.dml.Query;
+import org.h2.command.query.Query;
 import org.h2.engine.Database;
-import org.h2.engine.Session;
+import org.h2.engine.SessionLocal;
 import org.h2.expression.Parameter;
 import org.h2.message.DbException;
 import org.h2.schema.Schema;
@@ -18,14 +18,14 @@ import org.h2.table.Column;
 import org.h2.table.Table;
 import org.h2.table.TableType;
 import org.h2.table.TableView;
+import org.h2.util.HasSQL;
 import org.h2.value.TypeInfo;
-import org.h2.value.Value;
 
 /**
  * This class represents the statement
  * CREATE VIEW
  */
-public class CreateView extends SchemaCommand {
+public class CreateView extends SchemaOwnerCommand {
 
     private Query select;
     private String viewName;
@@ -37,7 +37,7 @@ public class CreateView extends SchemaCommand {
     private boolean force;
     private boolean isTableExpression;
 
-    public CreateView(Session session, Schema schema) {
+    public CreateView(SessionLocal session, Schema schema) {
         super(session, schema);
     }
 
@@ -78,12 +78,10 @@ public class CreateView extends SchemaCommand {
     }
 
     @Override
-    public int update() {
-        session.commit(true);
-        session.getUser().checkAdmin();
-        Database db = session.getDatabase();
+    long update(Schema schema) {
+        Database db = getDatabase();
         TableView view = null;
-        Table old = getSchema().findTableOrView(session, viewName);
+        Table old = schema.findTableOrView(session, viewName);
         if (old != null) {
             if (ifNotExists) {
                 return 0;
@@ -102,7 +100,7 @@ public class CreateView extends SchemaCommand {
             if (params != null && !params.isEmpty()) {
                 throw DbException.getUnsupportedException("parameters in views");
             }
-            querySQL = select.getPlanSQL(true);
+            querySQL = select.getPlanSQL(HasSQL.DEFAULT_SQL_FLAGS);
         }
         Column[] columnTemplatesAsUnknowns = null;
         Column[] columnTemplatesAsStrings = null;
@@ -113,17 +111,17 @@ public class CreateView extends SchemaCommand {
                 // non table expressions are fine to use unknown column type
                 columnTemplatesAsUnknowns[i] = new Column(columnNames[i], TypeInfo.TYPE_UNKNOWN);
                 // table expressions can't have unknown types - so we use string instead
-                columnTemplatesAsStrings[i] = new Column(columnNames[i], Value.STRING);
+                columnTemplatesAsStrings[i] = new Column(columnNames[i], TypeInfo.TYPE_VARCHAR);
             }
         }
         if (view == null) {
             if (isTableExpression) {
-                view = TableView.createTableViewMaybeRecursive(getSchema(), id, viewName, querySQL, null,
+                view = TableView.createTableViewMaybeRecursive(schema, id, viewName, querySQL, null,
                         columnTemplatesAsStrings, session, false /* literalsChecked */, isTableExpression,
                         false/*isTemporary*/, db);
             } else {
-                view = new TableView(getSchema(), id, viewName, querySQL, null, columnTemplatesAsUnknowns, session,
-                        false/* allow recursive */, false/* literalsChecked */, isTableExpression, false/*temporary*/);
+                view = new TableView(schema, id, viewName, querySQL, null, columnTemplatesAsUnknowns, session,
+                        false, false, isTableExpression, false);
             }
         } else {
             // TODO support isTableExpression in replace function...

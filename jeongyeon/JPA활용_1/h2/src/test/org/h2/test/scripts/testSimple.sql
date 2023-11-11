@@ -1,4 +1,4 @@
--- Copyright 2004-2019 H2 Group. Multiple-Licensed under the MPL 2.0,
+-- Copyright 2004-2023 H2 Group. Multiple-Licensed under the MPL 2.0,
 -- and the EPL 1.0 (https://h2database.com/html/license.html).
 -- Initial Developer: H2 Group
 --
@@ -12,16 +12,16 @@ select 1 from(select 2 from(select 1) a right join dual b) c;
 >> 1
 
 select 1.00 / 3 * 0.00;
->> 0E-29
+>> 0.000000000000000000000000
 
 select 1.00000 / 3 * 0.0000;
->> 0E-34
+>> 0.00000000000000000000000000000
 
 select 1.0000000 / 3 * 0.00000;
->> 0E-37
+>> 0.00000000000000000000000000000000
 
 select 1.0000000 / 3 * 0.000000;
->> 0E-38
+>> 0.000000000000000000000000000000000
 
 create table test(id null);
 > ok
@@ -62,7 +62,7 @@ select N'test';
 select E'test\\test';
 >> test\test
 
-create table a(id int) as select null;
+create table a(id int unique) as select null;
 > ok
 
 create table b(id int references a(id)) as select null;
@@ -98,13 +98,13 @@ select is_nullable from information_schema.columns c where c.table_name = 'TEST'
 alter table test alter column id set data type varchar;
 > ok
 
-select type_name from information_schema.columns c where c.table_name = 'TEST' and c.column_name = 'ID';
->> VARCHAR
+select data_type from information_schema.columns c where c.table_name = 'TEST' and c.column_name = 'ID';
+>> CHARACTER VARYING
 
 alter table test alter column id type int;
 > ok
 
-select type_name from information_schema.columns c where c.table_name = 'TEST' and c.column_name = 'ID';
+select data_type from information_schema.columns c where c.table_name = 'TEST' and c.column_name = 'ID';
 >> INTEGER
 
 alter table test alter column id drop default;
@@ -217,30 +217,6 @@ drop table test;
 select count(*)from((select 1 from dual limit 1)union(select 2 from dual limit 1));
 >> 2
 
-select sum(cast(x as int)) from system_range(2147483547, 2147483637);
->> 195421006872
-
-select sum(x) from system_range(9223372036854775707, 9223372036854775797);
->> 839326855353784593432
-
-select sum(cast(100 as tinyint)) from system_range(1, 1000);
->> 100000
-
-select sum(cast(100 as smallint)) from system_range(1, 1000);
->> 100000
-
-select avg(cast(x as int)) from system_range(2147483547, 2147483637);
->> 2147483592
-
-select avg(x) from system_range(9223372036854775707, 9223372036854775797);
->> 9223372036854775752
-
-select avg(cast(100 as tinyint)) from system_range(1, 1000);
->> 100
-
-select avg(cast(100 as smallint)) from system_range(1, 1000);
->> 100
-
 select datediff(yyyy, now(), now());
 >> 0
 
@@ -304,7 +280,7 @@ drop table master, detail;
 drop all objects;
 > ok
 
-create table test(id int, parent int references test(id) on delete cascade);
+create table test(id int primary key, parent int references test(id) on delete cascade);
 > ok
 
 insert into test values(0, 0);
@@ -424,7 +400,7 @@ ALTER TABLE TEST ALTER COLUMN ID RESTART WITH ?;
 };
 > update count: 0
 
-INSERT INTO TEST VALUES(NULL);
+INSERT INTO TEST VALUES(DEFAULT);
 > update count: 1
 
 SELECT * FROM TEST;
@@ -454,10 +430,10 @@ DROP SEQUENCE TEST_SEQ;
 create schema Contact;
 > ok
 
-CREATE TABLE Account (id BIGINT);
+CREATE TABLE Account (id BIGINT PRIMARY KEY);
 > ok
 
-CREATE TABLE Person (id BIGINT, FOREIGN KEY (id) REFERENCES Account(id));
+CREATE TABLE Person (id BIGINT PRIMARY KEY, FOREIGN KEY (id) REFERENCES Account(id));
 > ok
 
 CREATE TABLE Contact.Contact (id BIGINT, FOREIGN KEY (id) REFERENCES public.Person(id));
@@ -682,7 +658,7 @@ CREATE VIEW TEST_VIEW AS SELECT COUNT(ID) X FROM TEST;
 > ok
 
 explain SELECT * FROM TEST_VIEW WHERE X>1;
->> SELECT "PUBLIC"."TEST_VIEW"."X" FROM "PUBLIC"."TEST_VIEW" /* SELECT COUNT(ID) AS X FROM PUBLIC.TEST /++ PUBLIC.TEST.tableScan ++/ HAVING COUNT("ID") >= ?1: X > 1 */ WHERE "X" > 1
+>> SELECT "PUBLIC"."TEST_VIEW"."X" FROM "PUBLIC"."TEST_VIEW" /* SELECT COUNT(ID) AS X FROM PUBLIC.TEST /* PUBLIC.TEST.tableScan */ HAVING COUNT(ID) >= ?1: X > CAST(1 AS BIGINT) */ WHERE "X" > CAST(1 AS BIGINT)
 
 DROP VIEW TEST_VIEW;
 > ok
@@ -728,12 +704,6 @@ create table table2(f2 int not null primary key references table1(f1));
 
 drop table table1, table2;
 > ok
-
-select case when 1=null then 1 else 2 end;
->> 2
-
-select case (1) when 1 then 1 else 2 end;
->> 1
 
 create table test(id int);
 > ok
@@ -835,28 +805,7 @@ select date '+0011-01-01';
 >> 0011-01-01
 
 select date'-0010-01-01';
->> -10-01-01
-
-create schema TEST_SCHEMA;
-> ok
-
-create table TEST_SCHEMA.test(id int);
-> ok
-
-create sequence TEST_SCHEMA.TEST_SEQ;
-> ok
-
-select TEST_SCHEMA.TEST_SEQ.CURRVAL;
-> exception CURRENT_SEQUENCE_VALUE_IS_NOT_DEFINED_IN_SESSION_1
-
-select TEST_SCHEMA.TEST_SEQ.nextval;
->> 1
-
-select TEST_SCHEMA.TEST_SEQ.CURRVAL;
->> 1
-
-drop schema TEST_SCHEMA cascade;
-> ok
+>> -0010-01-01
 
 create table test(id int);
 > ok
@@ -886,12 +835,12 @@ create alias parse_long for "java.lang.Long.parseLong(java.lang.String)";
 comment on alias parse_long is 'Parse a long with base';
 > ok
 
-select remarks from information_schema.function_aliases where alias_name = 'PARSE_LONG';
+select remarks from information_schema.routines where routine_name = 'PARSE_LONG';
 >> Parse a long with base
 
 @reconnect
 
-select remarks from information_schema.function_aliases where alias_name = 'PARSE_LONG';
+select remarks from information_schema.routines where routine_name = 'PARSE_LONG';
 >> Parse a long with base
 
 drop alias parse_long;
@@ -905,12 +854,12 @@ create role hr;
 comment on role hr is 'Human Resources';
 > ok
 
-select remarks from information_schema.roles where name = 'HR';
+select remarks from information_schema.roles where role_name = 'HR';
 >> Human Resources
 
 @reconnect
 
-select remarks from information_schema.roles where name = 'HR';
+select remarks from information_schema.roles where role_name = 'HR';
 >> Human Resources
 
 create user abc password 'x';
@@ -980,23 +929,6 @@ drop schema tests cascade;
 
 @reconnect
 
-create constant abc value 1;
-> ok
-
-comment on constant abc is 'One';
-> ok
-
-select remarks from information_schema.constants where constant_name = 'ABC';
->> One
-
-@reconnect
-
-select remarks from information_schema.constants where constant_name = 'ABC';
->> One
-
-drop constant abc;
-> ok
-
 drop table test;
 > ok
 
@@ -1017,7 +949,7 @@ comment on constraint const1 is 'unique id';
 comment on index IDX_ID is 'id_index';
 > ok
 
-select remarks from information_schema.constraints where constraint_name = 'CONST1';
+select remarks from information_schema.table_constraints where constraint_name = 'CONST1';
 >> unique id
 
 select remarks from information_schema.indexes where index_name = 'IDX_ID';
@@ -1025,7 +957,7 @@ select remarks from information_schema.indexes where index_name = 'IDX_ID';
 
 @reconnect
 
-select remarks from information_schema.constraints where constraint_name = 'CONST1';
+select remarks from information_schema.table_constraints where constraint_name = 'CONST1';
 >> unique id
 
 select remarks from information_schema.indexes where index_name = 'IDX_ID';
@@ -1042,23 +974,23 @@ create user sales password '1';
 comment on user sales is 'mr. money';
 > ok
 
-select remarks from information_schema.users where name = 'SALES';
+select remarks from information_schema.users where user_name = 'SALES';
 >> mr. money
 
 @reconnect
 
-select remarks from information_schema.users where name = 'SALES';
+select remarks from information_schema.users where user_name = 'SALES';
 >> mr. money
 
 alter user sales rename to SALES_USER;
 > ok
 
-select remarks from information_schema.users where name = 'SALES_USER';
+select remarks from information_schema.users where user_name = 'SALES_USER';
 >> mr. money
 
 @reconnect
 
-select remarks from information_schema.users where name = 'SALES_USER';
+select remarks from information_schema.users where user_name = 'SALES_USER';
 >> mr. money
 
 create table test(id int);
@@ -1277,7 +1209,7 @@ select count(*) from test1 where a='abccccc';
 >> 0
 
 truncate table test1;
-> ok
+> update count: 8
 
 insert into test1 values ('abcaaaa');
 > update count: 1

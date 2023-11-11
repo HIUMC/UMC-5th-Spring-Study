@@ -1,5 +1,5 @@
 /*
- * Copyright 2004-2019 H2 Group. Multiple-Licensed under the MPL 2.0,
+ * Copyright 2004-2023 H2 Group. Multiple-Licensed under the MPL 2.0,
  * and the EPL 1.0 (https://h2database.com/html/license.html).
  * Initial Developer: H2 Group
  */
@@ -32,7 +32,7 @@ public class TestCluster extends TestDb {
      * @param a ignored
      */
     public static void main(String... a) throws Exception {
-        TestBase.createCaller().init().test();
+        TestBase.createCaller().init().testFromMain();
     }
 
     @Override
@@ -58,36 +58,42 @@ public class TestCluster extends TestDb {
         deleteFiles();
 
         org.h2.Driver.load();
-        String user = getUser(), password = getPassword();
-        Connection conn;
-        Statement stat;
+        String user = getUser();
+        String password = getPassword();
 
-        Server n1 = org.h2.tools.Server.createTcpServer("-ifNotExists", "-baseDir", getBaseDir() + "/node1").start();
-        int port1 = n1.getPort();
-        String url1 = getURL("jdbc:h2:tcp://localhost:" + port1 + "/test", false);
+        Server n1 = null;
+        try {
+            n1 = Server.createTcpServer("-ifNotExists", "-baseDir", getBaseDir() + "/node1").start();
+            int port1 = n1.getPort();
+            String url1 = getURL("jdbc:h2:tcp://localhost:" + port1 + "/test", false);
 
-        conn = getConnection(url1, user, password);
-        stat = conn.createStatement();
-        stat.execute("create table t1(id int, name clob)");
-        stat.execute("insert into t1 values(1, repeat('Hello', 50))");
-        conn.close();
+            try (Connection conn = getConnection(url1, user, password)) {
+                Statement stat = conn.createStatement();
+                stat.execute("create table t1(id int, name clob)");
+                stat.execute("insert into t1 values(1, repeat('Hello', 50))");
+            }
 
-        Server n2 = org.h2.tools.Server.createTcpServer("-ifNotExists", "-baseDir", getBaseDir() + "/node2").start();
-        int port2 = n2.getPort();
-        String url2 = getURL("jdbc:h2:tcp://localhost:" + port2 + "/test", false);
+            Server n2 = null;
+            try {
+                n2 = Server.createTcpServer("-ifNotExists", "-baseDir", getBaseDir() + "/node2").start();
+                int port2 = n2.getPort();
+                String url2 = getURL("jdbc:h2:tcp://localhost:" + port2 + "/test", false);
 
-        String serverList = "localhost:" + port1 + ",localhost:" + port2;
-        String urlCluster = getURL("jdbc:h2:tcp://" + serverList + "/test", true);
-        CreateCluster.main("-urlSource", url1, "-urlTarget", url2,
-                "-user", user, "-password", password, "-serverList",
-                serverList);
+                String serverList = "localhost:" + port1 + ",localhost:" + port2;
+                String urlCluster = getURL("jdbc:h2:tcp://" + serverList + "/test", true);
+                CreateCluster.main("-urlSource", url1, "-urlTarget", url2,
+                        "-user", user, "-password", password, "-serverList",
+                        serverList);
 
-        conn = getConnection(urlCluster, user, password);
-        conn.close();
-
-        n1.stop();
-        n2.stop();
-        deleteFiles();
+                Connection conn = getConnection(urlCluster, user, password);
+                conn.close();
+            } finally {
+                if (n2 != null) n2.stop();
+            }
+        } finally {
+            if (n1 != null) n1.stop();
+            deleteFiles();
+        }
     }
 
     private void testRecover() throws SQLException {
@@ -428,10 +434,10 @@ public class TestCluster extends TestDb {
 
         // try to connect in standalone mode - should fail
         // should not be able to connect in standalone mode
-        assertThrows(ErrorCode.CLUSTER_ERROR_DATABASE_RUNS_CLUSTERED_1, this).
-                getConnection("jdbc:h2:tcp://localhost:"+port1+"/test", user, password);
-        assertThrows(ErrorCode.CLUSTER_ERROR_DATABASE_RUNS_CLUSTERED_1, this).
-                getConnection("jdbc:h2:tcp://localhost:"+port2+"/test", user, password);
+        assertThrows(ErrorCode.CLUSTER_ERROR_DATABASE_RUNS_CLUSTERED_1,
+                () -> getConnection("jdbc:h2:tcp://localhost:" + port1 + "/test", user, password));
+        assertThrows(ErrorCode.CLUSTER_ERROR_DATABASE_RUNS_CLUSTERED_1,
+                () -> getConnection("jdbc:h2:tcp://localhost:" + port2 + "/test", user, password));
 
         // test a cluster connection
         conn = getConnection("jdbc:h2:tcp://" + serverList + "/test", user, password);
@@ -510,7 +516,7 @@ public class TestCluster extends TestDb {
             assertFalse(rs.next());
         }
         ResultSet rs = conn.createStatement().executeQuery(
-                "SELECT VALUE FROM INFORMATION_SCHEMA.SETTINGS WHERE NAME='CLUSTER'");
+                "SELECT SETTING_VALUE FROM INFORMATION_SCHEMA.SETTINGS WHERE SETTING_NAME = 'CLUSTER'");
         String cluster = rs.next() ? rs.getString(1) : "''";
         assertEquals(expectedCluster, cluster);
     }

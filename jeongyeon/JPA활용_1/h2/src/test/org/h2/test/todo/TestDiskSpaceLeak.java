@@ -1,5 +1,5 @@
 /*
- * Copyright 2004-2019 H2 Group. Multiple-Licensed under the MPL 2.0,
+ * Copyright 2004-2023 H2 Group. Multiple-Licensed under the MPL 2.0,
  * and the EPL 1.0 (https://h2database.com/html/license.html).
  * Initial Developer: H2 Group
  */
@@ -10,7 +10,7 @@ import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.ResultSet;
 import java.sql.SQLException;
-import org.h2.jdbc.JdbcConnection;
+import org.h2.test.TestBase;
 import org.h2.tools.DeleteDbFiles;
 import org.h2.tools.Recover;
 import org.h2.util.JdbcUtils;
@@ -49,8 +49,8 @@ public class TestDiskSpaceLeak {
             Recover.execute("data", "test");
             new File("data/test.h2.sql").renameTo(new File("data/test." + i + ".sql"));
             conn = DriverManager.getConnection("jdbc:h2:data/test");
-            // ((JdbcConnection) conn).setPowerOffCount(i);
-            ((JdbcConnection) conn).setPowerOffCount(28);
+            // TestBase.setPowerOffCount(conn, i);
+            TestBase.setPowerOffCount(conn, 28);
             String last = "connect";
             try {
                 conn.createStatement().execute("drop table test if exists");

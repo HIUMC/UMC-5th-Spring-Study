@@ -1,5 +1,5 @@
 /*
- * Copyright 2004-2019 H2 Group. Multiple-Licensed under the MPL 2.0,
+ * Copyright 2004-2023 H2 Group. Multiple-Licensed under the MPL 2.0,
  * and the EPL 1.0 (https://h2database.com/html/license.html).
  * Initial Developer: Alessandro Ventura
  */
@@ -20,6 +20,7 @@ import org.h2.api.UserToRolesMapper;
 import org.h2.engine.Database;
 import org.h2.engine.Right;
 import org.h2.engine.Role;
+import org.h2.engine.SessionLocal;
 import org.h2.engine.SysProperties;
 import org.h2.engine.User;
 import org.h2.engine.UserBuilder;
@@ -246,6 +247,10 @@ public class DefaultAuthenticator implements Authenticator {
      * Configure the authenticator from a configuration file
      *
      * @param configUrl URL of configuration file
+     * @throws AuthenticationException on failure
+     * @throws SAXException on failure
+     * @throws IOException on failure
+     * @throws ParserConfigurationException on failure
      */
     public void configureFromUrl(URL configUrl) throws AuthenticationException,
             SAXException, IOException, ParserConfigurationException {
@@ -256,7 +261,7 @@ public class DefaultAuthenticator implements Authenticator {
     private void configureFrom(H2AuthConfig config) throws AuthenticationException {
         allowUserRegistration = config.isAllowUserRegistration();
         createMissingRoles = config.isCreateMissingRoles();
-        Map<String, CredentialsValidator> newRealms = new HashMap<>();
+        HashMap<String, CredentialsValidator> newRealms = new HashMap<>();
         for (RealmConfig currentRealmConfig : config.getRealms()) {
             String currentRealmName = currentRealmConfig.getName();
             if (currentRealmName == null) {
@@ -271,7 +276,7 @@ public class DefaultAuthenticator implements Authenticator {
                 throw new AuthenticationException("invalid validator class fo realm " + currentRealmName, e);
             }
             currentValidator.configure(new ConfigProperties(currentRealmConfig.getProperties()));
-            if (newRealms.put(currentRealmConfig.getName().toUpperCase(), currentValidator) != null) {
+            if (newRealms.putIfAbsent(currentRealmConfig.getName().toUpperCase(), currentValidator) != null) {
                 throw new AuthenticationException("Duplicate realm " + currentRealmConfig.getName());
             }
         }
@@ -307,11 +312,15 @@ public class DefaultAuthenticator implements Authenticator {
             }
             Role currentRole = database.findRole(currentRoleName);
             if (currentRole == null && isCreateMissingRoles()) {
-                synchronized (database.getSystemSession()) {
+                final SessionLocal systemSession = database.getSystemSession();
+                systemSession.lock();
+                try {
                     currentRole = new Role(database, database.allocateObjectId(), currentRoleName, false);
                     database.addDatabaseObject(database.getSystemSession(), currentRole);
                     database.getSystemSession().commit(false);
                     updatedDb = true;
+                } finally {
+                    systemSession.unlock();
                 }
             }
             if (currentRole == null) {
@@ -347,10 +356,14 @@ public class DefaultAuthenticator implements Authenticator {
             throw new AuthenticationException(e);
         }
         if (user == null) {
-            synchronized (database.getSystemSession()) {
+            final SessionLocal systemSession = database.getSystemSession();
+            systemSession.lock();
+            try {
                 user = UserBuilder.buildUser(authenticationInfo, database, isPersistUsers());
                 database.addDatabaseObject(database.getSystemSession(), user);
                 database.getSystemSession().commit(false);
+            } finally {
+                systemSession.unlock();
             }
         }
         user.revokeTemporaryRightsOnRoles();

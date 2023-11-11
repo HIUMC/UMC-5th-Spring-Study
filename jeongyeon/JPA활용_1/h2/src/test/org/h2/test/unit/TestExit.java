@@ -1,5 +1,5 @@
 /*
- * Copyright 2004-2019 H2 Group. Multiple-Licensed under the MPL 2.0,
+ * Copyright 2004-2023 H2 Group. Multiple-Licensed under the MPL 2.0,
  * and the EPL 1.0 (https://h2database.com/html/license.html).
  * Initial Developer: H2 Group
  */
@@ -133,13 +133,7 @@ public class TestExit extends TestDb {
     /**
      * A database event listener used in this test.
      */
-    public static final class MyDatabaseEventListener implements
-            DatabaseEventListener {
-
-        @Override
-        public void exceptionThrown(SQLException e, String sql) {
-            // nothing to do
-        }
+    public static final class MyDatabaseEventListener implements DatabaseEventListener {
 
         @Override
         public void closingDatabase() {
@@ -148,21 +142,6 @@ public class TestExit extends TestDb {
             } catch (IOException e) {
                 TestBase.logError("error", e);
             }
-        }
-
-        @Override
-        public void setProgress(int state, String name, int x, int max) {
-            // nothing to do
-        }
-
-        @Override
-        public void init(String url) {
-            // nothing to do
-        }
-
-        @Override
-        public void opened() {
-            // nothing to do
         }
 
     }

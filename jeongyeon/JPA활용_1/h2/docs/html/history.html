@@ -1,6 +1,6 @@
 <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
 <!--
-Copyright 2004-2019 H2 Group. Multiple-Licensed under the MPL 2.0,
+Copyright 2004-2023 H2 Group. Multiple-Licensed under the MPL 2.0,
 and the EPL 1.0 (https://h2database.com/html/license.html).
 Initial Developer: H2 Group
 -->
@@ -74,6 +74,7 @@ translate -->
 <a href="installation.html">Installation</a><br />
 <a href="tutorial.html">Tutorial</a><br />
 <a href="features.html">Features</a><br />
+<a href="security.html">Security</a><br />
 <a href="performance.html">Performance</a><br />
 <a href="advanced.html">Advanced</a><br />
 <br />
@@ -87,22 +88,21 @@ translate -->
 <a href="grammar.html">SQL Grammar</a><br />
 <a href="systemtables.html">System Tables</a><br />
 <a href="../javadoc/index.html">Javadoc</a><br />
-<a href="../h2.pdf">PDF (1.5 MB)</a><br />
+<a href="https://github.com/h2database/h2database/releases/download/version-2.2.224/h2.pdf">PDF (2 MB)</a><br />
 <br />
 <b>Support</b><br />
 <a href="faq.html">FAQ</a><br />
 <a href="sourceError.html">Error Analyzer</a><br />
-<a href="https://groups.google.com/group/h2-database">Google Group (English)</a><br />
-<a href="https://groups.google.co.jp/group/h2-database-jp">Google Group (Japanese)</a><br />
-<a href="https://groups.google.com/group/h2-cn">Google Group (Chinese)</a><br />
+<a href="https://groups.google.com/g/h2-database">Google Group</a><br />
 <br />
 <b>Appendix</b><br />
-<a href="history.html">History &amp; Roadmap</a><br />
+<a href="history.html">History</a><br />
 <a href="license.html">License</a><br />
 <a href="build.html">Build</a><br />
 <a href="links.html">Links</a><br />
 <a href="mvstore.html">MVStore</a><br />
 <a href="architecture.html">Architecture</a><br />
+<a href="migration-to-v2.html">Migration to 2.0</a><br />
 <br />
 
 </div>
@@ -114,11 +114,9 @@ translate -->
 
 <!-- } -->
 
-<h1>History and Roadmap</h1>
+<h1>History</h1>
 <a href="#changelog">
     Change Log</a><br />
-<a href="#roadmap">
-    Roadmap</a><br />
 <a href="#history">
     History of this Database Engine</a><br />
 <a href="#why_java">
@@ -128,18 +126,8 @@ translate -->
 
 <h2 id="changelog">Change Log</h2>
 <p>
-The up-to-date change log is available at
-<a href="https://h2database.com/html/changelog.html">
-https://h2database.com/html/changelog.html
-</a>
-</p>
-
-<h2 id="roadmap">Roadmap</h2>
-<p>
-The current roadmap is available at
-<a href="https://h2database.com/html/roadmap.html">
-https://h2database.com/html/roadmap.html
-</a>
+The up-to-date change log is available
+<a href="changelog.html">here</a>
 </p>
 
 <h2 id="history">History of this Database Engine</h2>
@@ -197,16 +185,16 @@ Donators are:
 <ul>
 <li>Martin Wildam, Austria
 </li><li><a href="http://www.tagtraum.com">tagtraum industries incorporated, USA</a>
-</li><li><a href="http://www.timewriter.com">TimeWriter, Netherlands</a>
-</li><li><a href="http://cognitect.com">Cognitect, USA</a>
-</li><li><a href="http://www.code42.com">Code 42 Software, Inc., Minneapolis</a>
-</li><li><a href="http://www.codelutin.com">Code Lutin, France</a>
+</li><li><a href="https://www.timewriter.com">TimeWriter, Netherlands</a>
+</li><li><a href="https://cognitect.com">Cognitect, USA</a>
+</li><li><a href="https://www.code42.com">Code 42 Software, Inc., Minneapolis</a>
+</li><li><a href="https://www.codelutin.com">Code Lutin, France</a>
 </li><li><a href="http://www.netsuxxess.de">NetSuxxess GmbH, Germany</a>
-</li><li><a href="http://pokercopilot.com">Poker Copilot, Steve McLeod, Germany</a>
-</li><li><a href="http://skycash.com">SkyCash, Poland</a>
-</li><li><a href="http://lumber-mill.co.jp">Lumber-mill, Inc., Japan</a>
-</li><li><a href="http://www.stockmarketeye.com">StockMarketEye, USA</a>
-</li><li><a href="http://www.eckenfelder.de">Eckenfelder GmbH &amp; Co.KG, Germany</a>
+</li><li><a href="https://pokercopilot.com">Poker Copilot, Steve McLeod, Germany</a>
+</li><li><a href="https://www.skycash.com">SkyCash, Poland</a>
+</li><li><a href="https://lumber-mill.co.jp">Lumber-mill, Inc., Japan</a>
+</li><li><a href="https://www.stockmarketeye.com">StockMarketEye, USA</a>
+</li><li><a href="https://www.eckenfelder.de">Eckenfelder GmbH &amp; Co.KG, Germany</a>
 </li><li>Jun Iyama, Japan
 </li><li>Steven Branda, USA
 </li><li>Anthony Goubard, Netherlands
@@ -222,7 +210,7 @@ Donators are:
 </li><li>Elisabetta Berlini, Italy
 </li><li>William Gilbert, USA
 </li><li>Antonio Dieguez Rojas, Chile
-</li><li><a href="http://ontologyworks.com">Ontology Works, USA</a>
+</li><li><a href="https://www.ontologyworks.com">Ontology Works, USA</a>
 </li><li>Pete Haidinyak, USA
 </li><li>William Osmond, USA
 </li><li>Joachim Ansorg, Germany

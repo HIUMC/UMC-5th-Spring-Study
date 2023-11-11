@@ -1,5 +1,5 @@
 /*
- * Copyright 2004-2019 H2 Group. Multiple-Licensed under the MPL 2.0,
+ * Copyright 2004-2023 H2 Group. Multiple-Licensed under the MPL 2.0,
  * and the EPL 1.0 (https://h2database.com/html/license.html).
  * Initial Developer: H2 Group
  */
@@ -8,6 +8,7 @@ package org.h2.tools;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.nio.channels.Channels;
 import java.nio.channels.FileChannel;
 import java.sql.SQLException;
 import java.util.ArrayList;
@@ -15,35 +16,30 @@ import java.util.concurrent.TimeUnit;
 import org.h2.engine.Constants;
 import org.h2.message.DbException;
 import org.h2.mvstore.MVStore;
-import org.h2.security.SHA256;
 import org.h2.store.FileLister;
-import org.h2.store.FileStore;
-import org.h2.store.fs.FileChannelInputStream;
-import org.h2.store.fs.FileChannelOutputStream;
 import org.h2.store.fs.FilePath;
-import org.h2.store.fs.FilePathEncrypt;
 import org.h2.store.fs.FileUtils;
+import org.h2.store.fs.encrypt.FileEncrypt;
+import org.h2.store.fs.encrypt.FilePathEncrypt;
 import org.h2.util.Tool;
 
 /**
  * Allows changing the database file encryption password or algorithm.
- * <br />
+ *
  * This tool can not be used to change a password of a user.
  * The database must be closed before using this tool.
- * @h2.resource
  */
 public class ChangeFileEncryption extends Tool {
 
     private String directory;
     private String cipherType;
-    private byte[] decrypt;
-    private byte[] encrypt;
     private byte[] decryptKey;
     private byte[] encryptKey;
 
     /**
-     * Options are case sensitive. Supported options are:
+     * Options are case sensitive.
      * <table>
+     * <caption>Supported options</caption>
      * <tr><td>[-help] or [-?]</td>
      * <td>Print the list of options</td></tr>
      * <tr><td>[-cipher type]</td>
@@ -59,7 +55,6 @@ public class ChangeFileEncryption extends Tool {
      * <tr><td>[-quiet]</td>
      * <td>Do not print progress information</td></tr>
      * </table>
-     * @h2.resource
      *
      * @param args the command line arguments
      */
@@ -114,20 +109,6 @@ public class ChangeFileEncryption extends Tool {
     }
 
     /**
-     * Get the file encryption key for a given password.
-     *
-     * @param password the password as a char array
-     * @return the encryption key
-     */
-    private static byte[] getFileEncryptionKey(char[] password) {
-        if (password == null) {
-            return null;
-        }
-        // the clone is to avoid the unhelpful array cleaning
-        return SHA256.getKeyPasswordHash("file", password.clone());
-    }
-
-    /**
      * Changes the password for a database. The passwords must be supplied as
      * char arrays and are cleaned in this method. The database must be closed
      * before calling this method.
@@ -138,6 +119,7 @@ public class ChangeFileEncryption extends Tool {
      * @param decryptPassword the decryption password as a char array
      * @param encryptPassword the encryption password as a char array
      * @param quiet don't print progress information
+     * @throws SQLException on failure
      */
     public static void execute(String dir, String db, String cipher,
             char[] decryptPassword, char[] encryptPassword, boolean quiet)
@@ -162,11 +144,9 @@ public class ChangeFileEncryption extends Tool {
                 }
             }
             change.encryptKey = FilePathEncrypt.getPasswordBytes(encryptPassword);
-            change.encrypt = getFileEncryptionKey(encryptPassword);
         }
         if (decryptPassword != null) {
             change.decryptKey = FilePathEncrypt.getPasswordBytes(decryptPassword);
-            change.decrypt = getFileEncryptionKey(decryptPassword);
         }
         change.out = out;
         change.directory = dir;
@@ -207,18 +187,6 @@ public class ChangeFileEncryption extends Tool {
             }
             return;
         }
-        final FileStore in;
-        if (decrypt == null) {
-            in = FileStore.open(null, fileName, "r");
-        } else {
-            in = FileStore.open(null, fileName, "r", cipherType, decrypt);
-        }
-        try {
-            in.init();
-            copyPageStore(fileName, in, encrypt, quiet);
-        } finally {
-            in.closeSilently();
-        }
     }
 
     private void copyMvStore(String fileName, boolean quiet, char[] decryptPassword) throws IOException, SQLException {
@@ -239,10 +207,9 @@ public class ChangeFileEncryption extends Tool {
 
         String temp = directory + "/temp.db";
         try (FileChannel fileIn = getFileChannel(fileName, "r", decryptKey)){
-            try(InputStream inStream = new FileChannelInputStream(fileIn, true)) {
+            try (InputStream inStream = Channels.newInputStream(fileIn)) {
                 FileUtils.delete(temp);
-                try (OutputStream outStream = new FileChannelOutputStream(getFileChannel(temp, "rw", encryptKey),
-                        true)) {
+                try (OutputStream outStream = Channels.newOutputStream(getFileChannel(temp, "rw", encryptKey))) {
                     final byte[] buffer = new byte[4 * 1024];
                     long remaining = fileIn.size();
                     long total = remaining;
@@ -268,45 +235,10 @@ public class ChangeFileEncryption extends Tool {
             byte[] decryptKey) throws IOException {
         FileChannel fileIn = FilePath.get(fileName).open(r);
         if (decryptKey != null) {
-            fileIn = new FilePathEncrypt.FileEncrypt(fileName, decryptKey,
+            fileIn = new FileEncrypt(fileName, decryptKey,
                     fileIn);
         }
         return fileIn;
-    }
-
-    private void copyPageStore(String fileName, FileStore in, byte[] key, boolean quiet) {
-        if (FileUtils.isDirectory(fileName)) {
-            return;
-        }
-        final String temp = directory + "/temp.db";
-        FileUtils.delete(temp);
-        FileStore fileOut;
-        if (key == null) {
-            fileOut = FileStore.open(null, temp, "rw");
-        } else {
-            fileOut = FileStore.open(null, temp, "rw", cipherType, key);
-        }
-        final byte[] buffer = new byte[4 * 1024];
-        fileOut.init();
-        long remaining = in.length() - FileStore.HEADER_LENGTH;
-        long total = remaining;
-        in.seek(FileStore.HEADER_LENGTH);
-        fileOut.seek(FileStore.HEADER_LENGTH);
-        long time = System.nanoTime();
-        while (remaining > 0) {
-            if (!quiet && System.nanoTime() - time > TimeUnit.SECONDS.toNanos(1)) {
-                out.println(fileName + ": " + (100 - 100 * remaining / total) + "%");
-                time = System.nanoTime();
-            }
-            int len = (int) Math.min(buffer.length, remaining);
-            in.readFully(buffer, 0, len);
-            fileOut.write(buffer, 0, len);
-            remaining -= len;
-        }
-        in.close();
-        fileOut.close();
-        FileUtils.delete(fileName);
-        FileUtils.move(temp, fileName);
     }
 
 }

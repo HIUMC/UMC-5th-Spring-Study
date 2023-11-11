@@ -1,5 +1,5 @@
 /*
- * Copyright 2004-2019 H2 Group. Multiple-Licensed under the MPL 2.0,
+ * Copyright 2004-2023 H2 Group. Multiple-Licensed under the MPL 2.0,
  * and the EPL 1.0 (https://h2database.com/html/license.html).
  * Initial Developer: H2 Group
  */
@@ -9,7 +9,7 @@ import org.h2.api.ErrorCode;
 import org.h2.command.CommandInterface;
 import org.h2.command.ddl.SchemaCommand;
 import org.h2.engine.Right;
-import org.h2.engine.Session;
+import org.h2.engine.SessionLocal;
 import org.h2.message.DbException;
 import org.h2.schema.Schema;
 import org.h2.table.Table;
@@ -27,7 +27,7 @@ public class AlterTableSet extends SchemaCommand {
     private final boolean value;
     private boolean checkExisting;
 
-    public AlterTableSet(Session session, Schema schema, int type, boolean value) {
+    public AlterTableSet(SessionLocal session, Schema schema, int type, boolean value) {
         super(session, schema);
         this.type = type;
         this.value = value;
@@ -51,7 +51,7 @@ public class AlterTableSet extends SchemaCommand {
     }
 
     @Override
-    public int update() {
+    public long update() {
         Table table = getSchema().resolveTableOrView(session, tableName);
         if (table == null) {
             if (ifTableExists) {
@@ -59,15 +59,15 @@ public class AlterTableSet extends SchemaCommand {
             }
             throw DbException.get(ErrorCode.TABLE_OR_VIEW_NOT_FOUND_1, tableName);
         }
-        session.getUser().checkRight(table, Right.ALL);
-        table.lock(session, true, true);
+        session.getUser().checkTableRight(table, Right.SCHEMA_OWNER);
+        table.lock(session, Table.EXCLUSIVE_LOCK);
         switch (type) {
         case CommandInterface.ALTER_TABLE_SET_REFERENTIAL_INTEGRITY:
             table.setCheckForeignKeyConstraints(session, value, value ?
                     checkExisting : false);
             break;
         default:
-            DbException.throwInternalError("type="+type);
+            throw DbException.getInternalError("type="+type);
         }
         return 0;
     }

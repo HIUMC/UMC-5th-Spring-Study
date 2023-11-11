@@ -1,5 +1,5 @@
 /*
- * Copyright 2004-2019 H2 Group. Multiple-Licensed under the MPL 2.0,
+ * Copyright 2004-2023 H2 Group. Multiple-Licensed under the MPL 2.0,
  * and the EPL 1.0 (https://h2database.com/html/license.html).
  * Initial Developer: H2 Group
  */
@@ -23,13 +23,13 @@ import org.h2.util.Utils;
 
 /**
  * Starts the H2 Console (web-) server, TCP, and PG server.
- * @h2.resource
  */
 public class Server extends Tool implements Runnable, ShutdownHandler {
 
     private final Service service;
     private Server web, tcp, pg;
     private ShutdownHandler shutdownHandler;
+    private boolean fromCommandLine;
     private boolean started;
 
     public Server() {
@@ -42,6 +42,7 @@ public class Server extends Tool implements Runnable, ShutdownHandler {
      *
      * @param service the service
      * @param args the command line arguments
+     * @throws SQLException on failure
      */
     public Server(Service service, String... args) throws SQLException {
         verifyArgs(args);
@@ -55,23 +56,33 @@ public class Server extends Tool implements Runnable, ShutdownHandler {
 
     /**
      * When running without options, -tcp, -web, -browser and -pg are started.
-     * <br />
-     * Options are case sensitive. Supported options are:
+     *
+     * Options are case sensitive.
      * <table>
+     * <caption>Supported options</caption>
      * <tr><td>[-help] or [-?]</td>
      * <td>Print the list of options</td></tr>
      * <tr><td>[-web]</td>
      * <td>Start the web server with the H2 Console</td></tr>
      * <tr><td>[-webAllowOthers]</td>
      * <td>Allow other computers to connect - see below</td></tr>
+     * <tr><td>[-webExternalNames &lt;names&gt;]</td>
+     * <td>The comma-separated list of external names and IP addresses of this server,
+     * used together with -webAllowOthers</td></tr>
      * <tr><td>[-webDaemon]</td>
      * <td>Use a daemon thread</td></tr>
+     * <tr><td>[-webVirtualThreads &lt;true|false&gt;]</td>
+     * <td>Use virtual threads (on Java 21+ only)</td></tr>
      * <tr><td>[-webPort &lt;port&gt;]</td>
      * <td>The port (default: 8082)</td></tr>
      * <tr><td>[-webSSL]</td>
      * <td>Use encrypted (HTTPS) connections</td></tr>
      * <tr><td>[-webAdminPassword]</td>
-     * <td>Password of DB Console administrator</td></tr>
+     * <td>Hash of password of DB Console administrator, can be generated with
+     * {@linkplain WebServer#encodeAdminPassword(String)}. Can be passed only to
+     * the {@link #runTool(String...)} method, this method rejects it. It is
+     * also possible to store this setting in configuration file of H2
+     * Console.</td></tr>
      * <tr><td>[-browser]</td>
      * <td>Start a browser connecting to the web server</td></tr>
      * <tr><td>[-tcp]</td>
@@ -80,6 +91,8 @@ public class Server extends Tool implements Runnable, ShutdownHandler {
      * <td>Allow other computers to connect - see below</td></tr>
      * <tr><td>[-tcpDaemon]</td>
      * <td>Use a daemon thread</td></tr>
+     * <tr><td>[-tcpVirtualThreads &lt;true|false&gt;]</td>
+     * <td>Use virtual threads (on Java 21+ only)</td></tr>
      * <tr><td>[-tcpPort &lt;port&gt;]</td>
      * <td>The port (default: 9092)</td></tr>
      * <tr><td>[-tcpSSL]</td>
@@ -96,6 +109,8 @@ public class Server extends Tool implements Runnable, ShutdownHandler {
      * <td>Allow other computers to connect - see below</td></tr>
      * <tr><td>[-pgDaemon]</td>
      * <td>Use a daemon thread</td></tr>
+     * <tr><td>[-pgVirtualThreads &lt;true|false&gt;]</td>
+     * <td>Use virtual threads (on Java 21+ only)</td></tr>
      * <tr><td>[-pgPort &lt;port&gt;]</td>
      * <td>The port (default: 5435)</td></tr>
      * <tr><td>[-properties "&lt;dir&gt;"]</td>
@@ -112,14 +127,16 @@ public class Server extends Tool implements Runnable, ShutdownHandler {
      * <td>Allows to map a database name to another (all servers)</td></tr>
      * </table>
      * The options -xAllowOthers are potentially risky.
-     * <br />
+     *
      * For details, see Advanced Topics / Protection against Remote Access.
-     * @h2.resource
      *
      * @param args the command line arguments
+     * @throws SQLException on failure
      */
     public static void main(String... args) throws SQLException {
-        new Server().runTool(args);
+        Server server = new Server();
+        server.fromCommandLine = true;
+        server.runTool(args);
     }
 
     private void verifyArgs(String... args) throws SQLException {
@@ -133,14 +150,21 @@ public class Server extends Tool implements Runnable, ShutdownHandler {
                     // ok
                 } else if ("-webAllowOthers".equals(arg)) {
                     // no parameters
-                } else if ("-webDaemon".equals(arg)) {
+                } else if ("-webExternalNames".equals(arg)) {
+                    i++;
+                }  else if ("-webDaemon".equals(arg)) {
                     // no parameters
+                } else if ("-webVirtualThreads".equals(arg)) {
+                    i++;
                 } else if ("-webSSL".equals(arg)) {
                     // no parameters
                 } else if ("-webPort".equals(arg)) {
                     i++;
                 } else if ("-webAdminPassword".equals(arg)) {
-                    i += 2;
+                    if (fromCommandLine) {
+                        throwUnsupportedOption(arg);
+                    }
+                    i++;
                 } else {
                     throwUnsupportedOption(arg);
                 }
@@ -153,6 +177,8 @@ public class Server extends Tool implements Runnable, ShutdownHandler {
                     // no parameters
                 } else if ("-tcpDaemon".equals(arg)) {
                     // no parameters
+                } else if ("-tcpVirtualThreads".equals(arg)) {
+                    i++;
                 } else if ("-tcpSSL".equals(arg)) {
                     // no parameters
                 } else if ("-tcpPort".equals(arg)) {
@@ -173,6 +199,8 @@ public class Server extends Tool implements Runnable, ShutdownHandler {
                     // no parameters
                 } else if ("-pgDaemon".equals(arg)) {
                     // no parameters
+                } else if ("-pgVirtualThreads".equals(arg)) {
+                    i++;
                 } else if ("-pgPort".equals(arg)) {
                     i++;
                 } else {
@@ -234,6 +262,8 @@ public class Server extends Tool implements Runnable, ShutdownHandler {
                     webStart = true;
                 } else if ("-webAllowOthers".equals(arg)) {
                     // no parameters
+                } else if ("-webExternalNames".equals(arg)) {
+                    i++;
                 } else if ("-webDaemon".equals(arg)) {
                     // no parameters
                 } else if ("-webSSL".equals(arg)) {
@@ -241,7 +271,10 @@ public class Server extends Tool implements Runnable, ShutdownHandler {
                 } else if ("-webPort".equals(arg)) {
                     i++;
                 } else if ("-webAdminPassword".equals(arg)) {
-                    i += 2;
+                    if (fromCommandLine) {
+                        throwUnsupportedOption(arg);
+                    }
+                    i++;
                 } else {
                     showUsageAndThrowUnsupportedOption(arg);
                 }
@@ -375,6 +408,7 @@ public class Server extends Tool implements Runnable, ShutdownHandler {
      * @param force the shutdown (don't wait)
      * @param all whether all TCP servers that are running in the JVM should be
      *            stopped
+     * @throws SQLException on failure
      */
     public static void shutdownTcpServer(String url, String password,
             boolean force, boolean all) throws SQLException {
@@ -424,6 +458,7 @@ public class Server extends Tool implements Runnable, ShutdownHandler {
      *
      * @param args the argument list
      * @return the server
+     * @throws SQLException on failure
      */
     public static Server createWebServer(String... args) throws SQLException {
         return createWebServer(args, null, false);
@@ -468,6 +503,7 @@ public class Server extends Tool implements Runnable, ShutdownHandler {
      *
      * @param args the argument list
      * @return the server
+     * @throws SQLException on failure
      */
     public static Server createTcpServer(String... args) throws SQLException {
         TcpServer service = new TcpServer();
@@ -495,6 +531,7 @@ public class Server extends Tool implements Runnable, ShutdownHandler {
      *
      * @param args the argument list
      * @return the server
+     * @throws SQLException on failure
      */
     public static Server createPgServer(String... args) throws SQLException {
         return new Server(new PgServer(), args);
@@ -615,6 +652,7 @@ public class Server extends Tool implements Runnable, ShutdownHandler {
 
     /**
      * INTERNAL
+     * @param shutdownHandler to set
      */
     public void setShutdownHandler(ShutdownHandler shutdownHandler) {
         this.shutdownHandler = shutdownHandler;
@@ -645,6 +683,7 @@ public class Server extends Tool implements Runnable, ShutdownHandler {
      * Open a new browser tab or window with the given URL.
      *
      * @param url the URL to open
+     * @throws Exception on failure
      */
     public static void openBrowser(String url) throws Exception {
         try {
@@ -736,6 +775,7 @@ public class Server extends Tool implements Runnable, ShutdownHandler {
      * user has disconnected.
      *
      * @param conn the database connection (the database must be open)
+     * @throws SQLException on failure
      */
     public static void startWebServer(Connection conn) throws SQLException {
         startWebServer(conn, false);
@@ -750,6 +790,7 @@ public class Server extends Tool implements Runnable, ShutdownHandler {
      * @param conn the database connection (the database must be open)
      * @param ignoreProperties if {@code true} properties from
      *         {@code .h2.server.properties} will be ignored
+     * @throws SQLException on failure
      */
     public static void startWebServer(Connection conn, boolean ignoreProperties) throws SQLException {
         WebServer webServer = new WebServer();

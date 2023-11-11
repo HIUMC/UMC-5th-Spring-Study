@@ -1,4 +1,4 @@
--- Copyright 2004-2019 H2 Group. Multiple-Licensed under the MPL 2.0,
+-- Copyright 2004-2023 H2 Group. Multiple-Licensed under the MPL 2.0,
 -- and the EPL 1.0 (https://h2database.com/html/license.html).
 -- Initial Developer: H2 Group
 --
@@ -640,16 +640,16 @@ drop table test;
 > ok
 
 -- with group by
-create table test(name varchar, value int);
+create table test(name varchar, "VALUE" int);
 > ok
 
 insert into test values ('Group 2A', 10), ('Group 2A', 10), ('Group 2A', 20),
     ('Group 1X', 40), ('Group 1X', 50), ('Group 3B', null);
 > update count: 6
 
-select name, median(value) from test group by name order by name;
-> NAME     MEDIAN(VALUE)
-> -------- -------------
+select name, median("VALUE") from test group by name order by name;
+> NAME     MEDIAN("VALUE")
+> -------- ---------------
 > Group 1X 45.0
 > Group 2A 10
 > Group 3B null
@@ -727,8 +727,8 @@ insert into test values (10), (20), (30), (40), (50), (60), (70), (80), (90), (1
 > update count: 12
 
 select median(v), median(v) filter (where v >= 40) from test where v <= 100;
-> MEDIAN(V) MEDIAN(V) FILTER (WHERE (V >= 40))
-> --------- ----------------------------------
+> MEDIAN(V) MEDIAN(V) FILTER (WHERE V >= 40)
+> --------- --------------------------------
 > 55.0      70
 > rows: 1
 
@@ -736,14 +736,14 @@ create index test_idx on test(v);
 > ok
 
 select median(v), median(v) filter (where v >= 40) from test where v <= 100;
-> MEDIAN(V) MEDIAN(V) FILTER (WHERE (V >= 40))
-> --------- ----------------------------------
+> MEDIAN(V) MEDIAN(V) FILTER (WHERE V >= 40)
+> --------- --------------------------------
 > 55.0      70
 > rows: 1
 
 select median(v), median(v) filter (where v >= 40) from test;
-> MEDIAN(V) MEDIAN(V) FILTER (WHERE (V >= 40))
-> --------- ----------------------------------
+> MEDIAN(V) MEDIAN(V) FILTER (WHERE V >= 40)
+> --------- --------------------------------
 > 65.0      80
 > rows: 1
 
@@ -770,8 +770,8 @@ select dept, median(amount) from test group by dept order by dept;
 > rows (ordered): 3
 
 select dept, median(amount) filter (where amount >= 20) from test group by dept order by dept;
-> DEPT   MEDIAN(AMOUNT) FILTER (WHERE (AMOUNT >= 20))
-> ------ --------------------------------------------
+> DEPT   MEDIAN(AMOUNT) FILTER (WHERE AMOUNT >= 20)
+> ------ ------------------------------------------
 > First  30
 > Second 22
 > Third  160.0
@@ -779,8 +779,8 @@ select dept, median(amount) filter (where amount >= 20) from test group by dept 
 
 select dept, median(amount) filter (where amount >= 20) from test
     where (amount < 200) group by dept order by dept;
-> DEPT   MEDIAN(AMOUNT) FILTER (WHERE (AMOUNT >= 20))
-> ------ --------------------------------------------
+> DEPT   MEDIAN(AMOUNT) FILTER (WHERE AMOUNT >= 20)
+> ------ ------------------------------------------
 > First  30
 > Second 21.0
 > Third  150
@@ -910,3 +910,7 @@ SELECT PERCENTILE_CONT(0.7) WITHIN GROUP (ORDER BY V) FROM (VALUES TIME WITH TIM
 
 SELECT PERCENTILE_CONT(0.7) WITHIN GROUP (ORDER BY V) FROM (VALUES TIME WITH TIME ZONE '00:00:00Z', TIME WITH TIME ZONE '00:00:00-00:00:01') T(V);
 >> 00:00:00.3+00:00:01
+
+-- null ordering has no effect, but must be allowed
+SELECT PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY V NULLS LAST) FROM (VALUES NULL, 1, 3) T(V);
+>> 2.0

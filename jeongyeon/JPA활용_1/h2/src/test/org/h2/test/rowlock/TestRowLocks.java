@@ -1,5 +1,5 @@
 /*
- * Copyright 2004-2019 H2 Group. Multiple-Licensed under the MPL 2.0,
+ * Copyright 2004-2023 H2 Group. Multiple-Licensed under the MPL 2.0,
  * and the EPL 1.0 (https://h2database.com/html/license.html).
  * Initial Developer: H2 Group
  */
@@ -33,27 +33,13 @@ public class TestRowLocks extends TestDb {
      * @param a ignored
      */
     public static void main(String... a) throws Exception {
-        TestBase.createCaller().init().test();
+        TestBase.createCaller().init().testFromMain();
     }
 
     @Override
     public void test() throws Exception {
-        testSetMode();
-        if (config.mvStore) {
-            testCases();
-        }
+        testCases();
         deleteDb(getTestName());
-    }
-
-    private void testSetMode() throws SQLException {
-        deleteDb(getTestName());
-        c1 = getConnection(getTestName());
-        Statement stat = c1.createStatement();
-        stat.execute("SET LOCK_MODE 2");
-        ResultSet rs = stat.executeQuery("call lock_mode()");
-        rs.next();
-        assertEquals("2", rs.getString(1));
-        c1.close();
     }
 
     private void testCases() throws Exception {

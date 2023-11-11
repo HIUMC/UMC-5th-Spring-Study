@@ -1,5 +1,5 @@
 /*
- * Copyright 2004-2019 H2 Group. Multiple-Licensed under the MPL 2.0,
+ * Copyright 2004-2023 H2 Group. Multiple-Licensed under the MPL 2.0,
  * and the EPL 1.0 (https://h2database.com/html/license.html).
  * Initial Developer: H2 Group
  */
@@ -179,8 +179,13 @@ public class FreeSpaceBitSet {
     public void markUsed(long pos, int length) {
         int start = getBlock(pos);
         int blocks = getBlockCount(length);
-        assert set.nextSetBit(start) == -1 || set.nextSetBit(start) >= start + blocks :
-                "Double mark: " + Integer.toHexString(start) + "/" + Integer.toHexString(blocks) + " " + this;
+        // this is not an assert because we get called during file opening
+        if (set.nextSetBit(start) != -1 && set.nextSetBit(start) < start + blocks ) {
+            throw DataUtils.newMVStoreException(
+                    DataUtils.ERROR_FILE_CORRUPT,
+                    "Double mark: " + Integer.toHexString(start) +
+                    "/" + Integer.toHexString(blocks) + " " + this);
+        }
         set.set(start, start + blocks);
     }
 
@@ -217,31 +222,9 @@ public class FreeSpaceBitSet {
      * @return the fill rate (0 - 100)
      */
     int getFillRate() {
-        return getProjectedFillRate(0);
-    }
-
-    /**
-     * Calculates a prospective fill rate, which store would have after rewrite
-     * of sparsely populated chunk(s) and evacuation of still live data into a
-     * new chunk.
-     *
-     * @param vacatedBlocks
-     *            number of blocks vacated  as a result of live data evacuation less
-     *            number of blocks in prospective chunk with evacuated live data
-     * @return prospective fill rate (0 - 100)
-     */
-    int getProjectedFillRate(int vacatedBlocks) {
-        // it's not bullet-proof against race condition but should be good enough
-        // to get approximation without holding a store lock
-        int usedBlocks;
-        int totalBlocks;
-        do {
-            totalBlocks = set.length();
-            usedBlocks = set.cardinality();
-        } while (totalBlocks != set.length() || usedBlocks > totalBlocks);
-        usedBlocks -= firstFreeBlock + vacatedBlocks;
-        totalBlocks -= firstFreeBlock;
-        return usedBlocks == 0 ? 0 : (int)((100L * usedBlocks + totalBlocks - 1) / totalBlocks);
+        int usedBlocks = set.cardinality() - firstFreeBlock;
+        int totalBlocks = set.length() - firstFreeBlock;
+        return totalBlocks == 0 ? 0 : (int)((100L * usedBlocks + totalBlocks - 1) / totalBlocks);
     }
 
     /**

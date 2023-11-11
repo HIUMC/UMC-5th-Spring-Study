@@ -1,5 +1,5 @@
 /*
- * Copyright 2004-2019 H2 Group. Multiple-Licensed under the MPL 2.0,
+ * Copyright 2004-2023 H2 Group. Multiple-Licensed under the MPL 2.0,
  * and the EPL 1.0 (https://h2database.com/html/license.html).
  * Initial Developer: H2 Group
  */
@@ -9,18 +9,19 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
+
 import org.h2.api.ErrorCode;
 import org.h2.command.CommandInterface;
 import org.h2.constraint.Constraint;
 import org.h2.constraint.ConstraintActionType;
 import org.h2.engine.Database;
 import org.h2.engine.Right;
-import org.h2.engine.Session;
+import org.h2.engine.SessionLocal;
 import org.h2.message.DbException;
 import org.h2.schema.Schema;
+import org.h2.table.MaterializedView;
 import org.h2.table.Table;
 import org.h2.table.TableView;
-import org.h2.util.StringUtils;
 import org.h2.util.Utils;
 
 /**
@@ -34,9 +35,9 @@ public class DropTable extends DefineCommand {
 
     private final ArrayList<SchemaAndTable> tables = Utils.newSmallArrayList();
 
-    public DropTable(Session session) {
+    public DropTable(SessionLocal session) {
         super(session);
-        dropAction = session.getDatabase().getSettings().dropRestrict ?
+        dropAction = getDatabase().getSettings().dropRestrict ?
                 ConstraintActionType.RESTRICT :
                     ConstraintActionType.CASCADE;
     }
@@ -65,7 +66,7 @@ public class DropTable extends DefineCommand {
                     throw DbException.get(ErrorCode.TABLE_OR_VIEW_NOT_FOUND_1, tableName);
                 }
             } else {
-                session.getUser().checkRight(table, Right.ALL);
+                session.getUser().checkTableRight(table, Right.SCHEMA_OWNER);
                 if (!table.canDrop()) {
                     throw DbException.get(ErrorCode.CANNOT_DROP_TABLE_1, tableName);
                 }
@@ -86,6 +87,15 @@ public class DropTable extends DefineCommand {
                         }
                     }
                 }
+                CopyOnWriteArrayList<MaterializedView> dependentMaterializedViews = table
+                        .getDependentMaterializedViews();
+                if (dependentMaterializedViews != null && !dependentMaterializedViews.isEmpty()) {
+                    for (MaterializedView v : dependentMaterializedViews) {
+                        if (!tablesToDrop.contains(v)) {
+                            dependencies.add(v.getName());
+                        }
+                    }
+                }
                 final List<Constraint> constraints = table.getConstraints();
                 if (constraints != null && !constraints.isEmpty()) {
                     for (Constraint c : constraints) {
@@ -96,10 +106,10 @@ public class DropTable extends DefineCommand {
                 }
                 if (!dependencies.isEmpty()) {
                     throw DbException.get(ErrorCode.CANNOT_DROP_2, table.getName(),
-                            StringUtils.join(new StringBuilder(), dependencies, ", ").toString());
+                            String.join(", ", new HashSet<>(dependencies)));
                 }
             }
-            table.lock(session, true, true);
+            table.lock(session, Table.EXCLUSIVE_LOCK);
         }
         return true;
     }
@@ -111,7 +121,7 @@ public class DropTable extends DefineCommand {
             Table table = schemaAndTable.schema.findTableOrView(session, schemaAndTable.tableName);
             if (table != null) {
                 table.setModified();
-                Database db = session.getDatabase();
+                Database db = getDatabase();
                 db.lockMeta(session);
                 db.removeSchemaObject(session, table);
             }
@@ -119,8 +129,7 @@ public class DropTable extends DefineCommand {
     }
 
     @Override
-    public int update() {
-        session.commit(true);
+    public long update() {
         if (prepareDrop()) {
             executeDrop();
         }

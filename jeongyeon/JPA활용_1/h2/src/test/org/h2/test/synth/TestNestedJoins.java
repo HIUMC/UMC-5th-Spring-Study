@@ -1,5 +1,5 @@
 /*
- * Copyright 2004-2019 H2 Group. Multiple-Licensed under the MPL 2.0,
+ * Copyright 2004-2023 H2 Group. Multiple-Licensed under the MPL 2.0,
  * and the EPL 1.0 (https://h2database.com/html/license.html).
  * Initial Developer: H2 Group
  */
@@ -37,7 +37,7 @@ public class TestNestedJoins extends TestDb {
     public static void main(String... a) throws Exception {
         TestBase test = TestBase.createCaller().init();
         // test.config.traceTest = true;
-        test.test();
+        test.testFromMain();
     }
 
     @Override
@@ -62,16 +62,16 @@ public class TestNestedJoins extends TestDb {
         }
 
         // Derby doesn't work currently
-        // deleteDerby();
-        // try {
-        //     Class.forName("org.apache.derby.jdbc.EmbeddedDriver");
-        //     Connection c2 = DriverManager.getConnection(
-        //         "jdbc:derby:" + getBaseDir() +
-        //         "/derby/test;create=true", "sa", "sa");
-        //     dbs.add(c2.createStatement());
-        // } catch (Exception e) {
-        //     // database not installed - ok
-        // }
+        deleteDerby();
+        try {
+            Class.forName("org.apache.derby.iapi.jdbc.AutoloadedDriver");
+            Connection c2 = DriverManager.getConnection(
+                "jdbc:derby:" + getBaseDir() +
+                "/derby/test;create=true", "sa", "sa");
+            dbs.add(c2.createStatement());
+        } catch (Throwable e) {
+            // database not installed - ok
+        }
         String shortest = null;
         Throwable shortestEx = null;
         for (int i = 0; i < 10; i++) {
@@ -289,7 +289,6 @@ public class TestNestedJoins extends TestDb {
         assertContains(sql, "(");
         stat.execute("drop table a, b, c");
 
-        // see roadmap, tag: swapInnerJoinTables
         /*
         create table test(id int primary key, x int)
         as select x, x from system_range(1, 10);
@@ -603,7 +602,7 @@ public class TestNestedJoins extends TestDb {
                 "LEFT OUTER JOIN ( \"PUBLIC\".\"B\" " +
                 "INNER JOIN \"PUBLIC\".\"BASE\" \"B_BASE\" " +
                 "ON (\"B_BASE\".\"DELETED\" = 0) AND (\"B\".\"PK\" = \"B_BASE\".\"PK\") ) " +
-                "ON TRUE INNER JOIN \"PUBLIC\".\"A\" ON 1=1 " +
+                "ON 1=1 INNER JOIN \"PUBLIC\".\"A\" ON 1=1 " +
                 "WHERE \"A\".\"PK\" = \"A_BASE\".\"PK\"", sql);
         rs = stat.executeQuery(
                 "select a.pk, a_base.pk, b.pk, b_base.pk from a " +

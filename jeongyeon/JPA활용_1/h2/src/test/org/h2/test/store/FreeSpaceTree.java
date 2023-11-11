@@ -1,5 +1,5 @@
 /*
- * Copyright 2004-2019 H2 Group. Multiple-Licensed under the MPL 2.0,
+ * Copyright 2004-2023 H2 Group. Multiple-Licensed under the MPL 2.0,
  * and the EPL 1.0 (https://h2database.com/html/license.html).
  * Initial Developer: H2 Group
  */
@@ -85,7 +85,7 @@ public class FreeSpaceTree {
         BlockRange x = new BlockRange(start, blocks);
         BlockRange prev = freeSpace.floor(x);
         if (prev == null) {
-            throw DataUtils.newIllegalStateException(
+            throw DataUtils.newMVStoreException(
                     DataUtils.ERROR_INTERNAL, "Free space already marked");
         }
         if (prev.start == start) {
@@ -121,7 +121,7 @@ public class FreeSpaceTree {
         BlockRange x = new BlockRange(start, blocks);
         BlockRange next = freeSpace.ceiling(x);
         if (next == null) {
-            throw DataUtils.newIllegalStateException(
+            throw DataUtils.newMVStoreException(
                     DataUtils.ERROR_INTERNAL, "Free space sentinel is missing");
         }
         BlockRange prev = freeSpace.lower(x);
@@ -156,7 +156,7 @@ public class FreeSpaceTree {
 
     private int getBlockCount(int length) {
         if (length <= 0) {
-            throw DataUtils.newIllegalStateException(
+            throw DataUtils.newMVStoreException(
                     DataUtils.ERROR_INTERNAL, "Free space invalid length");
         }
         return MathUtils.roundUpInt(length, blockSize) / blockSize;

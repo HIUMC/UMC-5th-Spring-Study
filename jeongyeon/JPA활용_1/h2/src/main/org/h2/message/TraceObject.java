@@ -1,5 +1,5 @@
 /*
- * Copyright 2004-2019 H2 Group. Multiple-Licensed under the MPL 2.0,
+ * Copyright 2004-2023 H2 Group. Multiple-Licensed under the MPL 2.0,
  * and the EPL 1.0 (https://h2database.com/html/license.html).
  * Initial Developer: H2 Group
  */
@@ -16,7 +16,7 @@ import org.h2.util.StringUtils;
 /**
  * The base class for objects that can print trace information about themselves.
  */
-public class TraceObject {
+public abstract class TraceObject {
 
     /**
      * The trace type id  for callable statements.
@@ -130,6 +130,7 @@ public class TraceObject {
 
     /**
      * INTERNAL
+     * @return id
      */
     public int getTraceId() {
         return id;
@@ -137,6 +138,7 @@ public class TraceObject {
 
     /**
      * INTERNAL
+     * @return object name
      */
     public String getTraceObjectName() {
         return PREFIX[traceType] + id;
@@ -157,7 +159,7 @@ public class TraceObject {
      *
      * @return true if it is
      */
-    protected boolean isDebugEnabled() {
+    protected final boolean isDebugEnabled() {
         return trace.isDebugEnabled();
     }
 
@@ -166,7 +168,7 @@ public class TraceObject {
      *
      * @return true if it is
      */
-    protected boolean isInfoEnabled() {
+    protected final boolean isInfoEnabled() {
         return trace.isInfoEnabled();
     }
 
@@ -179,11 +181,10 @@ public class TraceObject {
      * @param newId the trace object id of the created object
      * @param value the value to assign this new object to
      */
-    protected void debugCodeAssign(String className, int newType, int newId,
-            String value) {
+    protected final void debugCodeAssign(String className, int newType, int newId, String value) {
         if (trace.isDebugEnabled()) {
-            trace.debugCode(className + " " + PREFIX[newType] +
-                    newId + " = " + getTraceObjectName() + "." + value + ";");
+            trace.debugCode(className + ' ' + PREFIX[newType] + newId + " = " + getTraceObjectName() + '.' + value
+                    + ';');
         }
     }
 
@@ -193,9 +194,9 @@ public class TraceObject {
      *
      * @param methodName the method name
      */
-    protected void debugCodeCall(String methodName) {
+    protected final void debugCodeCall(String methodName) {
         if (trace.isDebugEnabled()) {
-            trace.debugCode(getTraceObjectName() + "." + methodName + "();");
+            trace.debugCode(getTraceObjectName() + '.' + methodName + "();");
         }
     }
 
@@ -207,10 +208,9 @@ public class TraceObject {
      * @param methodName the method name
      * @param param one single long parameter
      */
-    protected void debugCodeCall(String methodName, long param) {
+    protected final void debugCodeCall(String methodName, long param) {
         if (trace.isDebugEnabled()) {
-            trace.debugCode(getTraceObjectName() + "." +
-                    methodName + "(" + param + ");");
+            trace.debugCode(getTraceObjectName() + '.' + methodName + '(' + param + ");");
         }
     }
 
@@ -222,10 +222,9 @@ public class TraceObject {
      * @param methodName the method name
      * @param param one single string parameter
      */
-    protected void debugCodeCall(String methodName, String param) {
+    protected final void debugCodeCall(String methodName, String param) {
         if (trace.isDebugEnabled()) {
-            trace.debugCode(getTraceObjectName() + "." +
-                    methodName + "(" + quote(param) + ");");
+            trace.debugCode(getTraceObjectName() + '.' + methodName + '(' + quote(param) + ");");
         }
     }
 
@@ -234,9 +233,9 @@ public class TraceObject {
      *
      * @param text the trace text
      */
-    protected void debugCode(String text) {
+    protected final void debugCode(String text) {
         if (trace.isDebugEnabled()) {
-            trace.debugCode(getTraceObjectName() + "." + text);
+            trace.debugCode(getTraceObjectName() + '.' + text + ';');
         }
     }
 

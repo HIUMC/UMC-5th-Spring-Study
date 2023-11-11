@@ -1,5 +1,5 @@
 /*
- * Copyright 2004-2019 H2 Group. Multiple-Licensed under the MPL 2.0,
+ * Copyright 2004-2023 H2 Group. Multiple-Licensed under the MPL 2.0,
  * and the EPL 1.0 (https://h2database.com/html/license.html).
  * Initial Developer: H2 Group
  */
@@ -21,7 +21,7 @@ public class TestPattern extends TestBase {
      * @param a ignored
      */
     public static void main(String... a) throws Exception {
-        TestBase.createCaller().init().test();
+        TestBase.createCaller().init().testFromMain();
     }
 
     @Override
@@ -44,7 +44,7 @@ public class TestPattern extends TestBase {
 
     private void testPattern() {
         CompareMode mode = CompareMode.getInstance(null, 0);
-        CompareLike comp = new CompareLike(mode, "\\", null, null, null, false);
+        CompareLike comp = new CompareLike(mode, "\\", null, false, false, null, null, CompareLike.LikeType.LIKE);
         test(comp, "B", "%_");
         test(comp, "A", "A%");
         test(comp, "A", "A%%");
@@ -99,7 +99,7 @@ public class TestPattern extends TestBase {
         for (int i = 0; i < len; i++) {
             char c = pattern.charAt(i);
             if (escape == c) {
-                if (i >= len) {
+                if (i >= len - 1) {
                     fail("escape can't be last char");
                 }
                 c = pattern.charAt(++i);

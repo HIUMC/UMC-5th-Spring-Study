@@ -1,5 +1,5 @@
 /*
- * Copyright 2004-2019 H2 Group. Multiple-Licensed under the MPL 2.0,
+ * Copyright 2004-2023 H2 Group. Multiple-Licensed under the MPL 2.0,
  * and the EPL 1.0 (https://h2database.com/html/license.html).
  * Initial Developer: H2 Group
  */
@@ -8,7 +8,7 @@ package org.h2.command.dml;
 import org.h2.command.CommandInterface;
 import org.h2.command.Prepared;
 import org.h2.engine.IsolationLevel;
-import org.h2.engine.Session;
+import org.h2.engine.SessionLocal;
 import org.h2.result.ResultInterface;
 
 /**
@@ -18,7 +18,7 @@ public class SetSessionCharacteristics extends Prepared {
 
     private final IsolationLevel isolationLevel;
 
-    public SetSessionCharacteristics(Session session, IsolationLevel isolationLevel) {
+    public SetSessionCharacteristics(SessionLocal session, IsolationLevel isolationLevel) {
         super(session);
         this.isolationLevel = isolationLevel;
     }
@@ -29,7 +29,7 @@ public class SetSessionCharacteristics extends Prepared {
     }
 
     @Override
-    public int update() {
+    public long update() {
         session.setIsolationLevel(isolationLevel);
         return 0;
     }

@@ -1,5 +1,5 @@
 /*
- * Copyright 2004-2019 H2 Group. Multiple-Licensed under the MPL 2.0,
+ * Copyright 2004-2023 H2 Group. Multiple-Licensed under the MPL 2.0,
  * and the EPL 1.0 (https://h2database.com/html/license.html).
  * Initial Developer: H2 Group
  */
@@ -16,14 +16,20 @@ import java.io.StringWriter;
 import java.io.Writer;
 import java.sql.SQLException;
 import java.sql.SQLXML;
+import java.util.HashMap;
+import java.util.Map;
 
+import javax.xml.XMLConstants;
+import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
+import javax.xml.parsers.SAXParserFactory;
 import javax.xml.stream.XMLInputFactory;
 import javax.xml.stream.XMLOutputFactory;
 import javax.xml.transform.Result;
 import javax.xml.transform.Source;
 import javax.xml.transform.Transformer;
 import javax.xml.transform.TransformerFactory;
+import javax.xml.transform.URIResolver;
 import javax.xml.transform.dom.DOMResult;
 import javax.xml.transform.dom.DOMSource;
 import javax.xml.transform.sax.SAXResult;
@@ -39,12 +45,27 @@ import org.h2.message.DbException;
 import org.h2.message.TraceObject;
 import org.h2.value.Value;
 import org.w3c.dom.Node;
+import org.xml.sax.EntityResolver;
 import org.xml.sax.InputSource;
+import org.xml.sax.XMLReader;
+import org.xml.sax.helpers.DefaultHandler;
 
 /**
  * Represents a SQLXML value.
  */
-public class JdbcSQLXML extends JdbcLob implements SQLXML {
+public final class JdbcSQLXML extends JdbcLob implements SQLXML {
+
+    private static final Map<String,Boolean> secureFeatureMap = new HashMap<>();
+    private static final EntityResolver NOOP_ENTITY_RESOLVER = (pubId, sysId) -> new InputSource(new StringReader(""));
+    private static final URIResolver NOOP_URI_RESOLVER = (href, base) -> new StreamSource(new StringReader(""));
+
+    static {
+        secureFeatureMap.put(XMLConstants.FEATURE_SECURE_PROCESSING, true);
+        secureFeatureMap.put("http://apache.org/xml/features/disallow-doctype-decl", true);
+        secureFeatureMap.put("http://xml.org/sax/features/external-general-entities", false);
+        secureFeatureMap.put("http://xml.org/sax/features/external-parameter-entities", false);
+        secureFeatureMap.put("http://apache.org/xml/features/nonvalidating/load-external-dtd", false);
+    }
 
     private DOMResult domResult;
 
@@ -55,6 +76,10 @@ public class JdbcSQLXML extends JdbcLob implements SQLXML {
 
     /**
      * INTERNAL
+     * @param conn to use
+     * @param value for this JdbcSQLXML
+     * @param state of the LOB
+     * @param id of the trace object
      */
     public JdbcSQLXML(JdbcConnection conn, Value value, State state, int id) {
         super(conn, value, state, TraceObject.SQLXML, id);
@@ -103,19 +128,47 @@ public class JdbcSQLXML extends JdbcLob implements SQLXML {
     public <T extends Source> T getSource(Class<T> sourceClass) throws SQLException {
         try {
             if (isDebugEnabled()) {
-                debugCodeCall(
+                debugCode(
                         "getSource(" + (sourceClass != null ? sourceClass.getSimpleName() + ".class" : "null") + ')');
             }
             checkReadable();
+            // see https://cheatsheetseries.owasp.org/cheatsheets/XML_External_Entity_Prevention_Cheat_Sheet.html
             if (sourceClass == null || sourceClass == DOMSource.class) {
                 DocumentBuilderFactory dbf = DocumentBuilderFactory.newInstance();
-                return (T) new DOMSource(dbf.newDocumentBuilder().parse(new InputSource(value.getInputStream())));
+                for (Map.Entry<String,Boolean> entry : secureFeatureMap.entrySet()) {
+                    try {
+                        dbf.setFeature(entry.getKey(), entry.getValue());
+                    } catch (Exception ignore) {/**/}
+                }
+                dbf.setXIncludeAware(false);
+                dbf.setExpandEntityReferences(false);
+                dbf.setAttribute(XMLConstants.ACCESS_EXTERNAL_SCHEMA, "");
+                DocumentBuilder db = dbf.newDocumentBuilder();
+                db.setEntityResolver(NOOP_ENTITY_RESOLVER);
+                return (T) new DOMSource(db.parse(new InputSource(value.getInputStream())));
             } else if (sourceClass == SAXSource.class) {
-                return (T) new SAXSource(new InputSource(value.getInputStream()));
+                SAXParserFactory spf = SAXParserFactory.newInstance();
+                for (Map.Entry<String,Boolean> entry : secureFeatureMap.entrySet()) {
+                    try {
+                        spf.setFeature(entry.getKey(), entry.getValue());
+                    } catch (Exception ignore) {/**/}
+                }
+                XMLReader reader = spf.newSAXParser().getXMLReader();
+                reader.setEntityResolver(NOOP_ENTITY_RESOLVER);
+                return (T) new SAXSource(reader, new InputSource(value.getInputStream()));
             } else if (sourceClass == StAXSource.class) {
                 XMLInputFactory xif = XMLInputFactory.newInstance();
+                xif.setProperty(XMLInputFactory.SUPPORT_DTD, false);
+                xif.setProperty(XMLConstants.ACCESS_EXTERNAL_DTD, "");
+                xif.setProperty("javax.xml.stream.isSupportingExternalEntities", false);
                 return (T) new StAXSource(xif.createXMLStreamReader(value.getInputStream()));
             } else if (sourceClass == StreamSource.class) {
+                TransformerFactory tf = TransformerFactory.newInstance();
+                tf.setAttribute(XMLConstants.ACCESS_EXTERNAL_DTD, "");
+                tf.setAttribute(XMLConstants.ACCESS_EXTERNAL_STYLESHEET, "");
+                tf.setURIResolver(NOOP_URI_RESOLVER);
+                tf.newTransformer().transform(new StreamSource(value.getInputStream()),
+                                                new SAXResult(new DefaultHandler()));
                 return (T) new StreamSource(value.getInputStream());
             }
             throw unsupported(sourceClass.getName());
@@ -164,8 +217,8 @@ public class JdbcSQLXML extends JdbcLob implements SQLXML {
     public <T extends Result> T setResult(Class<T> resultClass) throws SQLException {
         try {
             if (isDebugEnabled()) {
-                debugCodeCall(
-                        "getSource(" + (resultClass != null ? resultClass.getSimpleName() + ".class" : "null") + ')');
+                debugCode(
+                        "setResult(" + (resultClass != null ? resultClass.getSimpleName() + ".class" : "null") + ')');
             }
             checkEditable();
             if (resultClass == null || resultClass == DOMResult.class) {

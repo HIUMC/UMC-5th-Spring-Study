@@ -1,5 +1,5 @@
 /*
- * Copyright 2004-2019 H2 Group. Multiple-Licensed under the MPL 2.0,
+ * Copyright 2004-2023 H2 Group. Multiple-Licensed under the MPL 2.0,
  * and the EPL 1.0 (https://h2database.com/html/license.html).
  * Initial Developer: H2 Group
  */
@@ -26,6 +26,7 @@ import org.h2.api.ErrorCode;
 import org.h2.jdbc.JdbcConnection;
 import org.h2.test.TestBase;
 import org.h2.test.TestDb;
+import org.h2.test.utils.RandomDataUtils;
 import org.h2.util.IOUtils;
 
 /**
@@ -42,7 +43,7 @@ public class TestLobApi extends TestDb {
      * @param a ignored
      */
     public static void main(String... a) throws Exception {
-        TestBase.createCaller().init().test();
+        TestBase.createCaller().init().testFromMain();
     }
 
     @Override
@@ -116,7 +117,7 @@ public class TestLobApi extends TestDb {
         stat = conn.createStatement();
         stat.execute("create table test(id identity, c clob, b blob)");
         PreparedStatement prep = conn.prepareStatement(
-                "insert into test values(null, ?, ?)");
+                "insert into test(c, b) values(?, ?)");
         prep.setString(1, "");
         prep.setBytes(2, new byte[0]);
         prep.execute();
@@ -124,9 +125,7 @@ public class TestLobApi extends TestDb {
         Random r = new Random(1);
 
         char[] charsSmall = new char[20];
-        for (int i = 0; i < charsSmall.length; i++) {
-            charsSmall[i] = (char) r.nextInt(10000);
-        }
+        RandomDataUtils.randomChars(r, charsSmall);
         String dSmall = new String(charsSmall);
         prep.setCharacterStream(1, new StringReader(dSmall), -1);
         byte[] bytesSmall = new byte[20];
@@ -135,9 +134,7 @@ public class TestLobApi extends TestDb {
         prep.execute();
 
         char[] chars = new char[100000];
-        for (int i = 0; i < chars.length; i++) {
-            chars[i] = (char) r.nextInt(10000);
-        }
+        RandomDataUtils.randomChars(r, chars);
         String d = new String(chars);
         prep.setCharacterStream(1, new StringReader(d), -1);
         byte[] bytes = new byte[100000];
@@ -184,7 +181,7 @@ public class TestLobApi extends TestDb {
         stat = conn.createStatement();
         stat.execute("create table test(id identity, c clob, b blob)");
         PreparedStatement prep = conn.prepareStatement(
-                "insert into test values(null, ?, ?)");
+                "insert into test(c, b) values(?, ?)");
 
         assertThrows(ErrorCode.IO_EXCEPTION_1, prep).
                 setCharacterStream(1, new Reader() {
@@ -281,6 +278,7 @@ public class TestLobApi extends TestDb {
         rs = stat.executeQuery("select * from test");
         rs.next();
         Blob b3 = rs.getBlob(2);
+        b3.toString();
         assertEquals(length, b3.length());
         byte[] bytes = b.getBytes(1, length);
         byte[] bytes2 = b3.getBytes(1, length);
@@ -373,6 +371,7 @@ public class TestLobApi extends TestDb {
         rs = stat.executeQuery("select * from test");
         rs.next();
         Clob c2 = rs.getClob(2);
+        c2.toString();
         assertEquals(length, c2.length());
         String s = c.getSubString(1, length);
         String s2 = c2.getSubString(1, length);

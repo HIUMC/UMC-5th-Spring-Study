@@ -1,5 +1,5 @@
 /*
- * Copyright 2004-2019 H2 Group. Multiple-Licensed under the MPL 2.0,
+ * Copyright 2004-2023 H2 Group. Multiple-Licensed under the MPL 2.0,
  * and the EPL 1.0 (https://h2database.com/html/license.html).
  * Initial Developer: H2 Group
  */
@@ -84,7 +84,8 @@ public class SettingsBase {
         }
         StringBuilder buff = new StringBuilder("h2.");
         boolean nextUpper = false;
-        for (char c : key.toCharArray()) {
+        for (int i = 0, l = key.length(); i < l; i++) {
+            char c = key.charAt(i);
             if (c == '_') {
                 nextUpper = true;
             } else {
@@ -126,12 +127,7 @@ public class SettingsBase {
     public Entry<String, String>[] getSortedSettings() {
         @SuppressWarnings("unchecked")
         Map.Entry<String, String>[] entries = settings.entrySet().toArray(new Map.Entry[0]);
-        Arrays.sort(entries, new Comparator<Map.Entry<String, String>>() {
-            @Override
-            public int compare(Entry<String, String> o1, Entry<String, String> o2) {
-                return o1.getKey().compareTo(o2.getKey());
-            }
-        });
+        Arrays.sort(entries, Comparator.comparing(Entry::getKey));
         return entries;
     }
 

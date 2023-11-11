@@ -1,5 +1,5 @@
 /*
- * Copyright 2004-2019 H2 Group. Multiple-Licensed under the MPL 2.0,
+ * Copyright 2004-2023 H2 Group. Multiple-Licensed under the MPL 2.0,
  * and the EPL 1.0 (https://h2database.com/html/license.html).
  * Initial Developer: H2 Group
  */
@@ -9,7 +9,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 
 import org.h2.api.ErrorCode;
-import org.h2.engine.Session;
+import org.h2.engine.SessionLocal;
 import org.h2.message.DbException;
 import org.h2.table.Column;
 import org.h2.table.ColumnResolver;
@@ -23,7 +23,8 @@ import org.h2.value.Value;
  * This object is only used temporarily during the parsing phase, and later
  * replaced by column expressions.
  */
-public class Wildcard extends Expression {
+public final class Wildcard extends Expression {
+
     private final String schema;
     private final String table;
 
@@ -55,7 +56,7 @@ public class Wildcard extends Expression {
             if (column == null) {
                 throw ec.getColumnException(ErrorCode.COLUMN_NOT_FOUND_1);
             }
-            if (exceptTableColumns.put(column, ec) != null) {
+            if (exceptTableColumns.putIfAbsent(column, ec) != null) {
                 throw ec.getColumnException(ErrorCode.DUPLICATE_COLUMN_NAME_1);
             }
         }
@@ -63,13 +64,13 @@ public class Wildcard extends Expression {
     }
 
     @Override
-    public Value getValue(Session session) {
-        throw DbException.throwInternalError(toString());
+    public Value getValue(SessionLocal session) {
+        throw DbException.getInternalError(toString());
     }
 
     @Override
     public TypeInfo getType() {
-        throw DbException.throwInternalError(toString());
+        throw DbException.getInternalError(toString());
     }
 
     @Override
@@ -82,13 +83,13 @@ public class Wildcard extends Expression {
     }
 
     @Override
-    public Expression optimize(Session session) {
+    public Expression optimize(SessionLocal session) {
         throw DbException.get(ErrorCode.SYNTAX_ERROR_1, table);
     }
 
     @Override
     public void setEvaluatable(TableFilter tableFilter, boolean b) {
-        DbException.throwInternalError(toString());
+        throw DbException.getInternalError(toString());
     }
 
     @Override
@@ -102,22 +103,20 @@ public class Wildcard extends Expression {
     }
 
     @Override
-    public StringBuilder getSQL(StringBuilder builder, boolean alwaysQuote) {
+    public StringBuilder getUnenclosedSQL(StringBuilder builder, int sqlFlags) {
         if (table != null) {
             StringUtils.quoteIdentifier(builder, table).append('.');
         }
         builder.append('*');
         if (exceptColumns != null) {
-            builder.append(" EXCEPT (");
-            writeExpressions(builder, exceptColumns, alwaysQuote);
-            builder.append(')');
+            writeExpressions(builder.append(" EXCEPT ("), exceptColumns, sqlFlags).append(')');
         }
         return builder;
     }
 
     @Override
-    public void updateAggregate(Session session, int stage) {
-        DbException.throwInternalError(toString());
+    public void updateAggregate(SessionLocal session, int stage) {
+        throw DbException.getInternalError(toString());
     }
 
     @Override
@@ -125,12 +124,12 @@ public class Wildcard extends Expression {
         if (visitor.getType() == ExpressionVisitor.QUERY_COMPARABLE) {
             return true;
         }
-        throw DbException.throwInternalError(Integer.toString(visitor.getType()));
+        throw DbException.getInternalError(Integer.toString(visitor.getType()));
     }
 
     @Override
     public int getCost() {
-        throw DbException.throwInternalError(toString());
+        throw DbException.getInternalError(toString());
     }
 
 }

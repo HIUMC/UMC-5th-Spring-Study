@@ -1,5 +1,5 @@
 /*
- * Copyright 2004-2019 H2 Group. Multiple-Licensed under the MPL 2.0,
+ * Copyright 2004-2023 H2 Group. Multiple-Licensed under the MPL 2.0,
  * and the EPL 1.0 (https://h2database.com/html/license.html).
  * Initial Developer: H2 Group
  */
@@ -13,15 +13,27 @@ import java.sql.SQLException;
 /**
  * Represents a batch update database exception.
  */
-public class JdbcBatchUpdateException extends BatchUpdateException {
+public final class JdbcBatchUpdateException extends BatchUpdateException {
 
     private static final long serialVersionUID = 1L;
 
     /**
      * INTERNAL
+     * @param next exception
+     * @param updateCounts affected record counts
      */
     JdbcBatchUpdateException(SQLException next, int[] updateCounts) {
         super(next.getMessage(), next.getSQLState(), next.getErrorCode(), updateCounts);
+        setNextException(next);
+    }
+
+    /**
+     * INTERNAL
+     * @param next exception
+     * @param updateCounts affected record counts
+     */
+    JdbcBatchUpdateException(SQLException next, long[] updateCounts) {
+        super(next.getMessage(), next.getSQLState(), next.getErrorCode(), updateCounts, null);
         setNextException(next);
     }
 

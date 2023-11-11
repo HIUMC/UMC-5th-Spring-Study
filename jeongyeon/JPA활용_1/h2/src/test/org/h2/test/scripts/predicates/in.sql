@@ -1,4 +1,4 @@
--- Copyright 2004-2019 H2 Group. Multiple-Licensed under the MPL 2.0,
+-- Copyright 2004-2023 H2 Group. Multiple-Licensed under the MPL 2.0,
 -- and the EPL 1.0 (https://h2database.com/html/license.html).
 -- Initial Developer: H2 Group
 --
@@ -144,8 +144,7 @@ create table t2 (id int primary key) as (select x from system_range(1, 1000));
 > ok
 
 explain select count(*) from t1 where t1.id in ( select t2.id from t2 );
-#+mvStore#>> SELECT COUNT(*) FROM "PUBLIC"."T1" /* PUBLIC.PRIMARY_KEY_A: ID IN(SELECT T2.ID FROM PUBLIC.T2 /++ PUBLIC.T2.tableScan ++/) */ WHERE "T1"."ID" IN( SELECT "T2"."ID" FROM "PUBLIC"."T2" /* PUBLIC.T2.tableScan */)
-#-mvStore#>> SELECT COUNT(*) FROM "PUBLIC"."T1" /* PUBLIC.PRIMARY_KEY_A: ID IN(SELECT T2.ID FROM PUBLIC.T2 /++ PUBLIC.PRIMARY_KEY_A5 ++/) */ WHERE "T1"."ID" IN( SELECT "T2"."ID" FROM "PUBLIC"."T2" /* PUBLIC.PRIMARY_KEY_A5 */)
+>> SELECT COUNT(*) FROM "PUBLIC"."T1" /* PUBLIC.PRIMARY_KEY_A: ID IN(SELECT DISTINCT T2.ID FROM PUBLIC.T2 /* PUBLIC.T2.tableScan */) */ WHERE "T1"."ID" IN( SELECT DISTINCT "T2"."ID" FROM "PUBLIC"."T2" /* PUBLIC.T2.tableScan */)
 
 select count(*) from t1 where t1.id in ( select t2.id from t2 );
 > COUNT(*)
@@ -208,8 +207,8 @@ SELECT CASE WHEN NOT (false IN (null)) THEN false END;
 > rows: 1
 
 select a.v as av, b.v as bv, a.v IN (b.v), not a.v IN (b.v) from test a, test b;
-> AV    BV    A.V = B.V NOT (A.V = B.V)
-> ----- ----- --------- ---------------
+> AV    BV    A.V = B.V A.V <> B.V
+> ----- ----- --------- ----------
 > FALSE FALSE TRUE      FALSE
 > FALSE TRUE  FALSE     TRUE
 > FALSE null  null      null
@@ -222,8 +221,8 @@ select a.v as av, b.v as bv, a.v IN (b.v), not a.v IN (b.v) from test a, test b;
 > rows: 9
 
 select a.v as av, b.v as bv, a.v IN (b.v, null), not a.v IN (b.v, null) from test a, test b;
-> AV    BV    A.V IN(B.V, NULL) NOT (A.V IN(B.V, NULL))
-> ----- ----- ----------------- -----------------------
+> AV    BV    A.V IN(B.V, NULL) A.V NOT IN(B.V, NULL)
+> ----- ----- ----------------- ---------------------
 > FALSE FALSE TRUE              FALSE
 > FALSE TRUE  null              null
 > FALSE null  null              null
@@ -287,8 +286,8 @@ SELECT * FROM SYSTEM_RANGE(1, 10) WHERE X IN ((SELECT 1), (SELECT 2));
 > 2
 > rows: 2
 
-EXPLAIN SELECT * FROM SYSTEM_RANGE(1, 10) WHERE X IN ((SELECT 1), (SELECT 2));
->> SELECT "SYSTEM_RANGE"."X" FROM SYSTEM_RANGE(1, 10) /* range index: X IN((SELECT 1), (SELECT 2)) */ WHERE "X" IN((SELECT 1), (SELECT 2))
+EXPLAIN SELECT * FROM SYSTEM_RANGE(1, 10) WHERE X IN ((SELECT X FROM SYSTEM_RANGE(1, 1)), (SELECT X FROM SYSTEM_RANGE(2, 2)));
+>> SELECT "SYSTEM_RANGE"."X" FROM SYSTEM_RANGE(1, 10) /* range index: X IN((SELECT X FROM SYSTEM_RANGE(1, 1) /* range index */), (SELECT X FROM SYSTEM_RANGE(2, 2) /* range index */)) */ WHERE "X" IN((SELECT "X" FROM SYSTEM_RANGE(1, 1) /* range index */), (SELECT "X" FROM SYSTEM_RANGE(2, 2) /* range index */))
 
 -- Tests for IN predicate with an empty list
 
@@ -296,6 +295,12 @@ SELECT 1 WHERE 1 IN ();
 > 1
 > -
 > rows: 0
+
+SELECT 1 WHERE 1 NOT IN ();
+>> 1
+
+SELECT CASE 1 WHEN IN() THEN 1 ELSE 2 END;
+> exception SYNTAX_ERROR_2
 
 SET MODE DB2;
 > ok
@@ -339,13 +344,85 @@ SET MODE PostgreSQL;
 SELECT 1 WHERE 1 IN ();
 > exception SYNTAX_ERROR_2
 
-SET MODE Ignite;
+SET MODE Regular;
 > ok
 
-SELECT 1 WHERE 1 IN ();
-> 1
-> -
-> rows: 0
+CREATE TABLE TEST(A INT, B INT) AS (VALUES (1, 1), (1, 2), (2, 1), (2, NULL));
+> ok
 
-SET MODE Regular;
+SELECT * FROM TEST WHERE (A, B) IN ((1, 1), (2, 1), (2, 2), (2, NULL));
+> A B
+> - -
+> 1 1
+> 2 1
+> rows: 2
+
+DROP TABLE TEST;
+> ok
+
+SELECT LOCALTIME IN(DATE '2000-01-01', DATE '2010-01-01');
+> exception TYPES_ARE_NOT_COMPARABLE_2
+
+SELECT LOCALTIME IN ((VALUES DATE '2000-01-01', DATE '2010-01-01'));
+> exception TYPES_ARE_NOT_COMPARABLE_2
+
+CREATE TABLE TEST(V INT) AS VALUES 1, 2;
+> ok
+
+SELECT V, V IN (1, 1000000000000) FROM TEST;
+> V V IN(1, 1000000000000)
+> - ----------------------
+> 1 TRUE
+> 2 FALSE
+> rows: 2
+
+EXPLAIN SELECT V, V IN (1, 1000000000000) FROM TEST;
+>> SELECT "V", "V" IN(1, 1000000000000) FROM "PUBLIC"."TEST" /* PUBLIC.TEST.tableScan */
+
+CREATE UNIQUE INDEX TEST_IDX ON TEST(V);
+> ok
+
+SELECT V, V IN (1, 1000000000000) FROM TEST;
+> V V IN(1, 1000000000000)
+> - ----------------------
+> 1 TRUE
+> 2 FALSE
+> rows: 2
+
+EXPLAIN SELECT V, V IN (1, 1000000000000) FROM TEST;
+>> SELECT "V", "V" IN(1, 1000000000000) FROM "PUBLIC"."TEST" /* PUBLIC.TEST_IDX */
+
+DROP TABLE TEST;
+> ok
+
+CREATE TABLE TEST(C BIGINT PRIMARY KEY) AS VALUES 1, 1000000000000;
+> ok
+
+SELECT V, V IN (SELECT * FROM TEST) FROM (VALUES 1, 2) T(V);
+> V V IN( SELECT DISTINCT PUBLIC.TEST.C FROM PUBLIC.TEST)
+> - -----------------------------------------------------
+> 1 TRUE
+> 2 FALSE
+> rows: 2
+
+EXPLAIN SELECT V, V IN (SELECT * FROM TEST) FROM (VALUES 1, 2) T(V);
+>> SELECT "V", "V" IN( SELECT DISTINCT "PUBLIC"."TEST"."C" FROM "PUBLIC"."TEST" /* PUBLIC.TEST.tableScan */) FROM (VALUES (1), (2)) "T"("V") /* table scan */
+
+DROP TABLE TEST;
+> ok
+
+CREATE TABLE TEST(C INTEGER PRIMARY KEY) AS VALUES 1, 2;
+> ok
+
+SELECT V, V IN (SELECT * FROM TEST) FROM (VALUES 1, 1000000000000) T(V);
+> V             V IN( SELECT DISTINCT PUBLIC.TEST.C FROM PUBLIC.TEST)
+> ------------- -----------------------------------------------------
+> 1             TRUE
+> 1000000000000 FALSE
+> rows: 2
+
+EXPLAIN SELECT V, V IN (SELECT * FROM TEST) FROM (VALUES 1, 1000000000000) T(V);
+>> SELECT "V", "V" IN( SELECT DISTINCT "PUBLIC"."TEST"."C" FROM "PUBLIC"."TEST" /* PUBLIC.TEST.tableScan */) FROM (VALUES (1), (1000000000000)) "T"("V") /* table scan */
+
+DROP TABLE TEST;
 > ok

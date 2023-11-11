@@ -1,5 +1,5 @@
 /*
- * Copyright 2004-2019 H2 Group. Multiple-Licensed under the MPL 2.0,
+ * Copyright 2004-2023 H2 Group. Multiple-Licensed under the MPL 2.0,
  * and the EPL 1.0 (https://h2database.com/html/license.html).
  * Initial Developer: H2 Group
  */
@@ -10,6 +10,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.ByteBuffer;
+import java.nio.channels.Channels;
 import java.nio.channels.FileChannel;
 import java.nio.channels.FileLock;
 import java.util.ArrayList;
@@ -19,10 +20,9 @@ import org.h2.engine.Constants;
 import org.h2.message.DbException;
 import org.h2.store.fs.FakeFileChannel;
 import org.h2.store.fs.FileBase;
-import org.h2.store.fs.FileChannelInputStream;
 import org.h2.store.fs.FilePath;
-import org.h2.store.fs.FilePathDisk;
 import org.h2.store.fs.FileUtils;
+import org.h2.store.fs.disk.FilePathDisk;
 import org.h2.util.IOUtils;
 
 /**
@@ -124,10 +124,19 @@ public class FilePathZip2 extends FilePath {
 
     @Override
     public boolean isDirectory() {
+        return isRegularOrDirectory(true);
+    }
+
+    @Override
+    public boolean isRegularFile() {
+        return isRegularOrDirectory(false);
+    }
+
+    private boolean isRegularOrDirectory(boolean directory) {
         try {
             String entryName = getEntryName();
             if (entryName.length() == 0) {
-                return true;
+                return directory;
             }
             ZipInputStream file = openZip();
             boolean result = false;
@@ -138,12 +147,12 @@ public class FilePathZip2 extends FilePath {
                 }
                 String n = entry.getName();
                 if (n.equals(entryName)) {
-                    result = entry.isDirectory();
+                    result = entry.isDirectory() == directory;
                     break;
                 } else  if (n.startsWith(entryName)) {
                     if (n.length() == entryName.length() + 1) {
                         if (n.equals(entryName + "/")) {
-                            result = true;
+                            result = directory;
                             break;
                         }
                     }
@@ -243,7 +252,7 @@ public class FilePathZip2 extends FilePath {
 
     @Override
     public InputStream newInputStream() throws IOException {
-        return new FileChannelInputStream(open("r"), true);
+        return Channels.newInputStream(open("r"));
     }
 
     @Override

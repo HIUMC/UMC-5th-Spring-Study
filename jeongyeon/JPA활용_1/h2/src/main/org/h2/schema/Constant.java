@@ -1,23 +1,21 @@
 /*
- * Copyright 2004-2019 H2 Group. Multiple-Licensed under the MPL 2.0,
+ * Copyright 2004-2023 H2 Group. Multiple-Licensed under the MPL 2.0,
  * and the EPL 1.0 (https://h2database.com/html/license.html).
  * Initial Developer: H2 Group
  */
 package org.h2.schema;
 
 import org.h2.engine.DbObject;
-import org.h2.engine.Session;
+import org.h2.engine.SessionLocal;
 import org.h2.expression.ValueExpression;
-import org.h2.message.DbException;
 import org.h2.message.Trace;
-import org.h2.table.Table;
 import org.h2.value.Value;
 
 /**
  * A user-defined constant as created by the SQL statement
  * CREATE CONSTANT
  */
-public class Constant extends SchemaObjectBase {
+public final class Constant extends SchemaObject {
 
     private Value value;
     private ValueExpression expression;
@@ -27,20 +25,10 @@ public class Constant extends SchemaObjectBase {
     }
 
     @Override
-    public String getCreateSQLForCopy(Table table, String quotedName) {
-        throw DbException.throwInternalError(toString());
-    }
-
-    @Override
-    public String getDropSQL() {
-        return null;
-    }
-
-    @Override
     public String getCreateSQL() {
         StringBuilder builder = new StringBuilder("CREATE CONSTANT ");
-        getSQL(builder, true).append(" VALUE ");
-        return value.getSQL(builder).toString();
+        getSQL(builder, DEFAULT_SQL_FLAGS).append(" VALUE ");
+        return value.getSQL(builder, DEFAULT_SQL_FLAGS).toString();
     }
 
     @Override
@@ -49,14 +37,9 @@ public class Constant extends SchemaObjectBase {
     }
 
     @Override
-    public void removeChildrenAndResources(Session session) {
+    public void removeChildrenAndResources(SessionLocal session) {
         database.removeMeta(session, getId());
         invalidate();
-    }
-
-    @Override
-    public void checkRename() {
-        // ok
     }
 
     public void setValue(Value value) {

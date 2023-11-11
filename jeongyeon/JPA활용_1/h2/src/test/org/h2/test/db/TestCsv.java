@@ -1,5 +1,5 @@
 /*
- * Copyright 2004-2019 H2 Group. Multiple-Licensed under the MPL 2.0,
+ * Copyright 2004-2023 H2 Group. Multiple-Licensed under the MPL 2.0,
  * and the EPL 1.0 (https://h2database.com/html/license.html).
  * Initial Developer: H2 Group
  */
@@ -8,6 +8,7 @@ package org.h2.test.db;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
+import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.io.Reader;
@@ -15,17 +16,18 @@ import java.io.StringReader;
 import java.io.StringWriter;
 import java.nio.charset.StandardCharsets;
 import java.sql.Connection;
+import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
 
 import org.h2.api.ErrorCode;
-import org.h2.engine.SysProperties;
 import org.h2.store.fs.FileUtils;
 import org.h2.test.TestBase;
 import org.h2.test.TestDb;
@@ -49,7 +51,7 @@ public class TestCsv extends TestDb {
     public static void main(String... a) throws Exception {
         TestBase test = TestBase.createCaller().init();
         test.config.traceTest = true;
-        test.test();
+        test.testFromMain();
     }
 
     @Override
@@ -71,6 +73,14 @@ public class TestCsv extends TestDb {
         testAsTable();
         testRead();
         testPipe();
+        testReadEmptyNumbers1();
+        testReadEmptyNumbers2();
+        testCsvQuotedString1();
+        testCsvQuotedString2();
+        testCsvQuotedString3();
+        testCsvQuotedString4();
+        testCsvQuotedString5();
+        testCsvQuotedString6();
         deleteDb("csv");
     }
 
@@ -107,7 +117,7 @@ public class TestCsv extends TestDb {
         csv.setLineSeparator(";");
         csv.write(writer, rs);
         conn.close();
-        assertEquals("TS,N;-100-01-01 12:00:00,;", writer.toString());
+        assertEquals("TS,N;-0100-01-01 12:00:00,;", writer.toString());
     }
 
     private void testCaseSensitiveColumnNames() throws Exception {
@@ -182,7 +192,7 @@ public class TestCsv extends TestDb {
     private void testOptions() {
         Csv csv = new Csv();
         assertEquals(",", csv.getFieldSeparatorWrite());
-        assertEquals(SysProperties.LINE_SEPARATOR, csv.getLineSeparator());
+        assertEquals(System.lineSeparator(), csv.getLineSeparator());
         assertEquals("", csv.getNullString());
         assertEquals('\"', csv.getEscapeCharacter());
         assertEquals('"', csv.getFieldDelimiter());
@@ -231,9 +241,7 @@ public class TestCsv extends TestDb {
         assertEquals("\0", csv.getNullString());
         assertEquals("", charset);
 
-        createClassProxy(Csv.class);
-        assertThrows(ErrorCode.FEATURE_NOT_SUPPORTED_1, csv).
-            setOptions("escape=a error=b");
+        assertThrows(ErrorCode.FEATURE_NOT_SUPPORTED_1, () -> csv.setOptions("escape=a error=b"));
         assertEquals('a', csv.getEscapeCharacter());
     }
 
@@ -490,7 +498,7 @@ public class TestCsv extends TestDb {
         assertTrue(rs.next());
         assertEquals("Hello", rs.getString(1));
         assertFalse(rs.next());
-        rs = stat.executeQuery("call csvread('" + getBaseDir() + "/test.csv')");
+        rs = stat.executeQuery("select * from csvread('" + getBaseDir() + "/test.csv')");
         assertTrue(rs.next());
         assertEquals(1, rs.getInt(1));
         assertEquals("Hello", rs.getString(2));
@@ -571,7 +579,7 @@ public class TestCsv extends TestDb {
         }
         trace("read: " + TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - time));
         rs = new Csv().read(getBaseDir() + "/testRW.csv", null, "UTF8");
-        // stat.execute("CREATE ALIAS CSVREAD FOR \"org.h2.tools.Csv.read\"");
+        // stat.execute("CREATE ALIAS CSVREAD FOR 'org.h2.tools.Csv.read'");
         ResultSetMetaData meta = rs.getMetaData();
         assertEquals(2, meta.getColumnCount());
         for (int i = 0; i < len; i++) {
@@ -585,4 +593,134 @@ public class TestCsv extends TestDb {
         FileUtils.delete(getBaseDir() + "/testRW.csv");
     }
 
+    /**
+     * Reads a CSV file with a Number Column, having empty Cells
+     * Those empty Cells must be returned as NULL but not as a Zero-length
+     * String or else the Number conversion will fail.
+     *
+     * Furthermore, number of rows still must be correct when such an empty Cell
+     * has been found.
+     *
+     * @throws java.lang.Exception
+     */
+    private void testReadEmptyNumbers1() throws Exception {
+        String fileName = getBaseDir() + "/test.csv";
+        FileUtils.delete(fileName);
+        OutputStream out = FileUtils.newOutputStream(fileName, false);
+        byte[] b = ("\"TEST\"\n\"100.22\"\n\"\"\n").getBytes();
+        out.write(b, 0, b.length);
+        out.close();
+
+        Csv csv = new Csv();
+        csv.setQuotedNulls(true);
+        ResultSet rs = csv.read(fileName, null, "UTF8");
+        assertTrue(rs.next());
+        assertNotNull(rs.getString(1));
+
+        assertTrue(rs.next());
+        assertNull(rs.getString(1));
+
+        assertFalse(rs.next());
+
+        FileUtils.delete(fileName);
+    }
+
+    /**
+     * Insert a CSV with empty Number Cells into a Table with NUMERIC columns
+     * The empty Cell must return NULL to prevent failure from the String to
+     * Number conversion
+     *
+     * @throws java.lang.Exception
+     */
+    private void testReadEmptyNumbers2() throws Exception {
+        String fileName = getBaseDir() + "/test.csv";
+        FileUtils.delete(fileName);
+        OutputStream out = FileUtils.newOutputStream(fileName, false);
+        byte[] b = ("\"TEST\"\n\"100.22\"\n\"\"").getBytes();
+        out.write(b, 0, b.length);
+        out.close();
+
+        deleteDb("csv");
+        Connection conn = DriverManager.getConnection("jdbc:h2:mem:test");
+        Statement stat = conn.createStatement();
+        stat.execute("CREATE TABLE TEST(TEST DECIMAL(12,2) NULL)");
+        stat.execute("INSERT INTO TEST SELECT * FROM CsvRead('" + fileName + "', NULL, 'quotedNulls=true')");
+
+        FileUtils.delete(fileName);
+    }
+
+    private void testCsvQuotedString1() throws Exception { testCsvQuotedNullStrings(false, "NULL"); }
+    private void testCsvQuotedString2() throws Exception { testCsvQuotedNullStrings(true, "NULL"); }
+    private void testCsvQuotedString3() throws Exception { testCsvQuotedNullStrings(false, ""); }
+    private void testCsvQuotedString4() throws Exception { testCsvQuotedNullStrings(true, ""); }
+    private void testCsvQuotedString5() throws Exception { testCsvQuotedNullStrings(false, "$empty"); }
+    private void testCsvQuotedString6() throws Exception { testCsvQuotedNullStrings(true, "$empty"); }
+
+    private void testCsvQuotedNullStrings(boolean quotedStrings, String nullString) throws Exception {
+        String fileName = getBaseDir() + "/test.csv";
+        FileUtils.delete(fileName);
+
+        deleteDb("csv");
+        Connection conn = DriverManager.getConnection("jdbc:h2:mem:test");
+        Statement stat = conn.createStatement();
+        stat.execute("DROP TABLE IF EXISTS TEST");
+        stat.execute("CREATE TABLE TEST(ID char(2) NOT NULL, NAME varchar(255), HEIGHT integer, BIRTHDATE date,"
+                + " PRIMARY KEY (ID))");
+        stat.execute("INSERT INTO TEST VALUES('01', 'Penrosed Roberto', 511, '1958-03-29')");
+        stat.execute("INSERT INTO TEST VALUES('02', NULL, 512, '1975-07-12')");
+        stat.execute("INSERT INTO TEST VALUES('03', 'Smith John', NULL, '1971-11-03')");
+        stat.execute("INSERT INTO TEST VALUES('04', 'Hatchet Eve', 500, NULL)");
+        stat.execute("INSERT INTO TEST VALUES('05', NULL, NULL, NULL)");
+        stat.execute("CALL CSVWRITE('" + fileName + "', 'SELECT * FROM TEST ORDER BY ID','quotedNulls=" + quotedStrings
+                + " nullString=" + nullString + "')");
+
+        InputStream fis = FileUtils.newInputStream(fileName);
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        byte[] buffer = new byte[1024];
+        int read = fis.read(buffer);
+        while (read >= 0) {
+            baos.write(buffer, 0, read);
+            read = fis.read(buffer);
+        }
+        baos.close();
+        fis.close();
+
+        String csvWrittenContent = new String(baos.toByteArray());
+        if (quotedStrings) {
+            assertTrue(csvWrittenContent.contains("\""+nullString+"\""));
+        } else {
+            assertTrue(csvWrittenContent.contains(nullString));
+            assertFalse(csvWrittenContent.contains("\""+nullString+"\""));
+        }
+
+        stat.execute("DELETE FROM TEST");
+        stat.execute("INSERT INTO TEST SELECT * FROM CSVREAD('" + fileName + "', NULL, 'quotedNulls=" + quotedStrings
+                + " nullString=" + nullString + "')");
+
+        //check imported results
+        ResultSet rs = stat.executeQuery("SELECT * FROM TEST ORDER BY ID");
+        for (int i = 1 ; i <= 5 ; ++i) {
+            assertTrue("Missing record " + i, rs.next());
+
+            if (i == 1) {
+                assertEquals("Penrosed Roberto", rs.getString("NAME"));
+                assertEquals(511, rs.getInt("HEIGHT"));
+                assertEquals(LocalDate.of(1958, 3, 29), rs.getObject("BIRTHDATE", LocalDate.class));
+            } else if (i == 2) {
+                assertNull(rs.getString("NAME"));
+            } else if (i == 3) {
+                assertNull(rs.getObject("HEIGHT"));
+            } else if (i == 4) {
+                assertNull(rs.getDate("BIRTHDATE"));
+            } else {
+                assertNull(rs.getString("NAME"));
+                assertNull(rs.getObject("HEIGHT"));
+                assertNull(rs.getDate("BIRTHDATE"));
+            }
+        }
+        rs.close();
+
+        FileUtils.delete(fileName);
+    }
 }
+

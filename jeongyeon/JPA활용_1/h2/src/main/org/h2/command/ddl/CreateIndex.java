@@ -1,5 +1,5 @@
 /*
- * Copyright 2004-2019 H2 Group. Multiple-Licensed under the MPL 2.0,
+ * Copyright 2004-2023 H2 Group. Multiple-Licensed under the MPL 2.0,
  * and the EPL 1.0 (https://h2database.com/html/license.html).
  * Initial Developer: H2 Group
  */
@@ -10,7 +10,8 @@ import org.h2.command.CommandInterface;
 import org.h2.engine.Constants;
 import org.h2.engine.Database;
 import org.h2.engine.Right;
-import org.h2.engine.Session;
+import org.h2.engine.SessionLocal;
+import org.h2.engine.NullsDistinct;
 import org.h2.index.IndexType;
 import org.h2.message.DbException;
 import org.h2.schema.Schema;
@@ -26,12 +27,14 @@ public class CreateIndex extends SchemaCommand {
     private String tableName;
     private String indexName;
     private IndexColumn[] indexColumns;
-    private boolean primaryKey, unique, hash, spatial, affinity;
+    private NullsDistinct nullsDistinct;
+    private int uniqueColumnCount;
+    private boolean primaryKey, hash, spatial;
     private boolean ifTableExists;
     private boolean ifNotExists;
     private String comment;
 
-    public CreateIndex(Session session, Schema schema) {
+    public CreateIndex(SessionLocal session, Schema schema) {
         super(session, schema);
     }
 
@@ -56,11 +59,8 @@ public class CreateIndex extends SchemaCommand {
     }
 
     @Override
-    public int update() {
-        if (!transactional) {
-            session.commit(true);
-        }
-        Database db = session.getDatabase();
+    public long update() {
+        Database db = getDatabase();
         boolean persistent = db.isPersistent();
         Table table = getSchema().findTableOrView(session, tableName);
         if (table == null) {
@@ -75,8 +75,8 @@ public class CreateIndex extends SchemaCommand {
             }
             throw DbException.get(ErrorCode.INDEX_ALREADY_EXISTS_1, indexName);
         }
-        session.getUser().checkRight(table, Right.ALL);
-        table.lock(session, true, true);
+        session.getUser().checkTableRight(table, Right.SCHEMA_OWNER);
+        table.lock(session, Table.EXCLUSIVE_LOCK);
         if (!table.isPersistIndexes()) {
             persistent = false;
         }
@@ -96,16 +96,13 @@ public class CreateIndex extends SchemaCommand {
                 throw DbException.get(ErrorCode.SECOND_PRIMARY_KEY);
             }
             indexType = IndexType.createPrimaryKey(persistent, hash);
-        } else if (unique) {
-            indexType = IndexType.createUnique(persistent, hash);
-        } else if (affinity) {
-            indexType = IndexType.createAffinity();
+        } else if (uniqueColumnCount > 0) {
+            indexType = IndexType.createUnique(persistent, hash, uniqueColumnCount, nullsDistinct);
         } else {
             indexType = IndexType.createNonUnique(persistent, hash, spatial);
         }
         IndexColumn.mapColumns(indexColumns, table);
-        table.addIndex(session, indexName, id, indexColumns, indexType, create,
-                comment);
+        table.addIndex(session, indexName, id, indexColumns, uniqueColumnCount, indexType, create, comment);
         return 0;
     }
 
@@ -113,8 +110,9 @@ public class CreateIndex extends SchemaCommand {
         this.primaryKey = b;
     }
 
-    public void setUnique(boolean b) {
-        this.unique = b;
+    public void setUnique(NullsDistinct nullsDistinct, int uniqueColumnCount) {
+        this.nullsDistinct = nullsDistinct;
+        this.uniqueColumnCount = uniqueColumnCount;
     }
 
     public void setHash(boolean b) {
@@ -123,10 +121,6 @@ public class CreateIndex extends SchemaCommand {
 
     public void setSpatial(boolean b) {
         this.spatial = b;
-    }
-
-    public void setAffinity(boolean b) {
-        this.affinity = b;
     }
 
     public void setComment(String comment) {

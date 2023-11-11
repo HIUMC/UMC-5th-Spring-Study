@@ -1,5 +1,5 @@
 /*
- * Copyright 2004-2019 H2 Group. Multiple-Licensed under the MPL 2.0,
+ * Copyright 2004-2023 H2 Group. Multiple-Licensed under the MPL 2.0,
  * and the EPL 1.0 (https://h2database.com/html/license.html).
  * Initial Developer: H2 Group
  */
@@ -43,7 +43,7 @@ public class TestCompress extends TestDb {
      * @param a ignored
      */
     public static void main(String... a) throws Exception {
-        TestBase.createCaller().init().test();
+        TestBase.createCaller().init().testFromMain();
     }
 
     @Override
@@ -159,7 +159,7 @@ public class TestCompress extends TestDb {
         int pageSize = Constants.DEFAULT_PAGE_SIZE;
         byte[] buff2 = new byte[pageSize];
         byte[] test = new byte[2 * pageSize];
-        compress.compress(buff2, pageSize, test, 0);
+        compress.compress(buff2, 0, pageSize, test, 0);
         for (int j = 0; j < 4; j++) {
             long time = System.nanoTime();
             for (int i = 0; i < 1000; i++) {
@@ -169,7 +169,7 @@ public class TestCompress extends TestDb {
                     if (len < 0) {
                         break;
                     }
-                    compress.compress(buff2, pageSize, test, 0);
+                    compress.compress(buff2, 0, pageSize, test, 0);
                 }
                 in.close();
             }
@@ -186,7 +186,7 @@ public class TestCompress extends TestDb {
                 if (len < 0) {
                     break;
                 }
-                int b = compress.compress(buff2, pageSize, test, 0);
+                int b = compress.compress(buff2, 0, pageSize, test, 0);
                 byte[] data = Arrays.copyOf(test, b);
                 comp.add(data);
             }

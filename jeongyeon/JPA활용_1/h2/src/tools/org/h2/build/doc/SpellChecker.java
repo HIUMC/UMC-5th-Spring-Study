@@ -1,12 +1,14 @@
 /*
- * Copyright 2004-2019 H2 Group. Multiple-Licensed under the MPL 2.0,
+ * Copyright 2004-2023 H2 Group. Multiple-Licensed under the MPL 2.0,
  * and the EPL 1.0 (https://h2database.com/html/license.html).
  * Initial Developer: H2 Group
  */
 package org.h2.build.doc;
 
-import java.io.File;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -31,12 +33,11 @@ public class SpellChecker {
             "properties", "task", "MF", "mf", "sh", "" };
     private static final String[] IGNORE = { "dev", "nsi", "gif", "png", "odg",
             "ico", "sxd", "zip", "bz2", "rc", "layout", "res", "dll", "jar",
-            "svg", "prefs", "prop", "iml", "class" };
+            "svg", "prefs", "prop", "iml", "class", "json" };
     private static final String DELIMITERS =
             " \n.();-\"=,*/{}_<>+\r:'@[]&\\!#|?$^%~`\t";
     private static final String PREFIX_IGNORE = "abc";
-    private static final String[] IGNORE_FILES = { "mainWeb.html",
-            "pg_catalog.sql" };
+    private static final String[] IGNORE_FILES = { "mainWeb.html" };
 
     // These are public so we can set them during development testing
 
@@ -72,8 +73,8 @@ public class SpellChecker {
     }
 
     private void run(String dictionaryFileName, String dir) throws IOException {
-        process(new File(dictionaryFileName));
-        process(new File(dir));
+        process(Paths.get(dictionaryFileName));
+        process(Paths.get(dir));
         HashSet<String> unused = new HashSet<>();
         unused.addAll(dictionary);
         unused.removeAll(used);
@@ -113,20 +114,20 @@ public class SpellChecker {
         }
     }
 
-    private void process(File file) throws IOException {
-        String name = file.getName();
+    private void process(Path file) throws IOException {
+        String name = file.getFileName().toString();
         if (name.endsWith(".svn") || name.endsWith(".DS_Store")) {
             return;
         }
         if (name.startsWith("_") && name.indexOf("_en") < 0) {
             return;
         }
-        if (file.isDirectory()) {
-            for (File f : file.listFiles()) {
+        if (Files.isDirectory(file)) {
+            for (Path f : Files.newDirectoryStream(file)) {
                 process(f);
             }
         } else {
-            String fileName = file.getAbsolutePath();
+            String fileName = file.toAbsolutePath().toString();
             int idx = fileName.lastIndexOf('.');
             String suffix;
             if (idx < 0) {
@@ -183,10 +184,7 @@ public class SpellChecker {
                 System.out.println();
             }
         }
-        if (notFound.isEmpty()) {
-            return;
-        }
-        if (notFound.size() > 0) {
+        if (!notFound.isEmpty()) {
             System.out.println("file: " + fileName);
             for (String s : notFound) {
                 System.out.print(s + " ");

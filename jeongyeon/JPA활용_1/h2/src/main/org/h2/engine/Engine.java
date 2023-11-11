@@ -1,5 +1,5 @@
 /*
- * Copyright 2004-2019 H2 Group. Multiple-Licensed under the MPL 2.0,
+ * Copyright 2004-2023 H2 Group. Multiple-Licensed under the MPL 2.0,
  * and the EPL 1.0 (https://h2database.com/html/license.html).
  * Initial Developer: H2 Group
  */
@@ -16,9 +16,13 @@ import org.h2.message.Trace;
 import org.h2.security.auth.AuthenticationException;
 import org.h2.security.auth.AuthenticationInfo;
 import org.h2.security.auth.Authenticator;
+import org.h2.store.fs.FileUtils;
+import org.h2.util.DateTimeUtils;
 import org.h2.util.MathUtils;
 import org.h2.util.ParserUtil;
+import org.h2.util.StringUtils;
 import org.h2.util.ThreadDeadlockDetector;
+import org.h2.util.TimeZoneProvider;
 import org.h2.util.Utils;
 
 /**
@@ -26,67 +30,86 @@ import org.h2.util.Utils;
  * It is also responsible for opening and creating new databases.
  * This is a singleton class.
  */
-public class Engine implements SessionFactory {
+public final class Engine {
 
-    private static final Engine INSTANCE = new Engine();
-    private static final Map<String, Database> DATABASES = new HashMap<>();
+    private static final Map<String, DatabaseHolder> DATABASES = new HashMap<>();
 
-    private volatile long wrongPasswordDelay =
-            SysProperties.DELAY_WRONG_PASSWORD_MIN;
-    private boolean jmx;
+    private static volatile long WRONG_PASSWORD_DELAY = SysProperties.DELAY_WRONG_PASSWORD_MIN;
 
-    private Engine() {
-        // use getInstance()
+    private static boolean JMX;
+
+    static {
         if (SysProperties.THREAD_DEADLOCK_DETECTOR) {
             ThreadDeadlockDetector.init();
         }
     }
 
-    public static Engine getInstance() {
-        return INSTANCE;
-    }
-
-    private Session openSession(ConnectionInfo ci, boolean ifExists, boolean forbidCreation, String cipher) {
+    private static SessionLocal openSession(ConnectionInfo ci, boolean ifExists, boolean forbidCreation,
+            String cipher) {
         String name = ci.getName();
         Database database;
         ci.removeProperty("NO_UPGRADE", false);
         boolean openNew = ci.getProperty("OPEN_NEW", false);
         boolean opened = false;
         User user = null;
-        synchronized (DATABASES) {
-            if (openNew || ci.isUnnamedInMemory()) {
-                database = null;
-            } else {
-                database = DATABASES.get(name);
+        DatabaseHolder databaseHolder;
+        if (!ci.isUnnamedInMemory()) {
+            synchronized (DATABASES) {
+                databaseHolder = DATABASES.computeIfAbsent(name, (key) -> new DatabaseHolder());
             }
-            if (database == null) {
-                String p = ci.getProperty("MV_STORE");
-                boolean exists = p == null ? Database.exists(name)
-                        : Database.exists(name, Utils.parseBoolean(p, true, false));
-                if (!exists) {
-                    if (ifExists) {
-                        throw DbException.get(ErrorCode.DATABASE_NOT_FOUND_WITH_IF_EXISTS_1, name);
+        } else {
+            databaseHolder = new DatabaseHolder();
+        }
+        synchronized (databaseHolder) {
+            database = databaseHolder.database;
+            if (database == null || openNew) {
+                if (ci.isPersistent()) {
+                    String p = ci.getProperty("MV_STORE");
+                    String fileName;
+                    if (p == null) {
+                        fileName = name + Constants.SUFFIX_MV_FILE;
+                        if (!FileUtils.exists(fileName)) {
+                            throwNotFound(ifExists, forbidCreation, name);
+                            fileName = name + Constants.SUFFIX_OLD_DATABASE_FILE;
+                            if (FileUtils.exists(fileName)) {
+                                throw DbException.getFileVersionError(fileName);
+                            }
+                            fileName = null;
+                        }
+                    } else {
+                        fileName = name + Constants.SUFFIX_MV_FILE;
+                        if (!FileUtils.exists(fileName)) {
+                            throwNotFound(ifExists, forbidCreation, name);
+                            fileName = null;
+                        }
                     }
-                    if (forbidCreation) {
-                        throw DbException.get(ErrorCode.REMOTE_DATABASE_NOT_FOUND_1, name);
+                    if (fileName != null && !FileUtils.canWrite(fileName)) {
+                        ci.setProperty("ACCESS_MODE_DATA", "r");
                     }
+                } else {
+                    throwNotFound(ifExists, forbidCreation, name);
                 }
                 database = new Database(ci, cipher);
                 opened = true;
-                if (database.getAllUsers().isEmpty()) {
+                boolean found = false;
+                for (RightOwner rightOwner : database.getAllUsersAndRoles()) {
+                    if (rightOwner instanceof User) {
+                        found = true;
+                        break;
+                    }
+                }
+                if (!found) {
                     // users is the last thing we add, so if no user is around,
                     // the database is new (or not initialized correctly)
-                    user = new User(database, database.allocateObjectId(),
-                            ci.getUserName(), false);
+                    user = new User(database, database.allocateObjectId(), ci.getUserName(), false);
                     user.setAdmin(true);
                     user.setUserPasswordHash(ci.getUserPasswordHash());
                     database.setMasterUser(user);
                 }
-                if (!ci.isUnnamedInMemory()) {
-                    DATABASES.put(name, database);
-                }
+                databaseHolder.database = database;
             }
         }
+
         if (opened) {
             // start the thread when already synchronizing on the database
             // otherwise a deadlock can occur when the writer thread
@@ -137,10 +160,13 @@ public class Engine implements SessionFactory {
         //Prevent to set _PASSWORD
         ci.cleanAuthenticationInfo();
         checkClustering(ci, database);
-        Session session = database.createSession(user, ci.getNetworkConnectionInfo());
+        SessionLocal session = database.createSession(user, ci.getNetworkConnectionInfo());
         if (session == null) {
             // concurrently closing
             return null;
+        }
+        if (ci.getProperty("OLD_INFORMATION_SCHEMA", false)) {
+            session.setOldInformationSchema(true);
         }
         if (ci.getProperty("JMX", false)) {
             try {
@@ -150,9 +176,18 @@ public class Engine implements SessionFactory {
                 database.removeSession(session);
                 throw DbException.get(ErrorCode.FEATURE_NOT_SUPPORTED_1, e, "JMX");
             }
-            jmx = true;
+            JMX = true;
         }
         return session;
+    }
+
+    private static void throwNotFound(boolean ifExists, boolean forbidCreation, String name) {
+        if (ifExists) {
+            throw DbException.get(ErrorCode.DATABASE_NOT_FOUND_WITH_IF_EXISTS_1, name);
+        }
+        if (forbidCreation) {
+            throw DbException.get(ErrorCode.REMOTE_DATABASE_NOT_FOUND_1, name);
+        }
     }
 
     /**
@@ -161,14 +196,9 @@ public class Engine implements SessionFactory {
      * @param ci the connection information
      * @return the session
      */
-    @Override
-    public Session createSession(ConnectionInfo ci) {
-        return INSTANCE.createSessionAndValidate(ci);
-    }
-
-    private Session createSessionAndValidate(ConnectionInfo ci) {
+    public static SessionLocal createSession(ConnectionInfo ci) {
         try {
-            Session session = openSession(ci);
+            SessionLocal session = openSession(ci);
             validateUserAndPassword(true);
             return session;
         } catch (DbException e) {
@@ -179,14 +209,14 @@ public class Engine implements SessionFactory {
         }
     }
 
-    private synchronized Session openSession(ConnectionInfo ci) {
+    private static SessionLocal openSession(ConnectionInfo ci) {
         boolean ifExists = ci.removeProperty("IFEXISTS", false);
         boolean forbidCreation = ci.removeProperty("FORBID_CREATION", false);
         boolean ignoreUnknownSetting = ci.removeProperty(
                 "IGNORE_UNKNOWN_SETTINGS", false);
         String cipher = ci.removeProperty("CIPHER", null);
         String init = ci.removeProperty("INIT", null);
-        Session session;
+        SessionLocal session;
         long start = System.nanoTime();
         for (;;) {
             session = openSession(ci, ifExists, forbidCreation, cipher);
@@ -195,8 +225,7 @@ public class Engine implements SessionFactory {
             }
             // we found a database that is currently closing
             // wait a bit to avoid a busy loop (the method is synchronized)
-            if (System.nanoTime() - start > 60_000_000_000L) {
-                // retry at most 1 minute
+            if (System.nanoTime() - start > DateTimeUtils.NANOS_PER_MINUTE) {
                 throw DbException.get(ErrorCode.DATABASE_ALREADY_OPEN_1,
                         "Waited for database closing longer than 1 minute");
             }
@@ -206,22 +235,27 @@ public class Engine implements SessionFactory {
                 throw DbException.get(ErrorCode.DATABASE_CALLED_AT_SHUTDOWN);
             }
         }
-        synchronized (session) {
+        session.lock();
+        try {
             session.setAllowLiterals(true);
-            DbSettings defaultSettings = DbSettings.getDefaultSettings();
+            DbSettings defaultSettings = DbSettings.DEFAULT;
             for (String setting : ci.getKeys()) {
                 if (defaultSettings.containsKey(setting)) {
                     // database setting are only used when opening the database
                     continue;
                 }
                 String value = ci.getProperty(setting);
+                StringBuilder builder = new StringBuilder("SET ").append(setting).append(' ');
                 if (!ParserUtil.isSimpleIdentifier(setting, false, false)) {
-                    throw DbException.get(ErrorCode.UNSUPPORTED_SETTING_1, setting);
+                    if (!setting.equalsIgnoreCase("TIME ZONE")) {
+                        throw DbException.get(ErrorCode.UNSUPPORTED_SETTING_1, setting);
+                    }
+                    StringUtils.quoteStringSQL(builder, value);
+                } else {
+                    builder.append(value);
                 }
                 try {
-                    CommandInterface command = session.prepareCommand(
-                            "SET " + setting + ' ' + value,
-                            Integer.MAX_VALUE);
+                    CommandInterface command = session.prepareLocal(builder.toString());
                     command.executeUpdate(null);
                 } catch (DbException e) {
                     if (e.getErrorCode() == ErrorCode.ADMIN_RIGHTS_REQUIRED) {
@@ -236,10 +270,13 @@ public class Engine implements SessionFactory {
                     }
                 }
             }
+            TimeZoneProvider timeZone = ci.getTimeZone();
+            if (timeZone != null) {
+                session.setTimeZone(timeZone);
+            }
             if (init != null) {
                 try {
-                    CommandInterface command = session.prepareCommand(init,
-                            Integer.MAX_VALUE);
+                    CommandInterface command = session.prepareLocal(init);
                     command.executeUpdate(null);
                 } catch (DbException e) {
                     if (!ignoreUnknownSetting) {
@@ -250,6 +287,8 @@ public class Engine implements SessionFactory {
             }
             session.setAllowLiterals(false);
             session.commit(true);
+        } finally {
+            session.unlock();
         }
         return session;
     }
@@ -283,8 +322,8 @@ public class Engine implements SessionFactory {
      *
      * @param name the database name
      */
-    void close(String name) {
-        if (jmx) {
+    static void close(String name) {
+        if (JMX) {
             try {
                 Utils.callStaticMethod("org.h2.jmx.DatabaseInfo.unregisterMBean", name);
             } catch (Exception e) {
@@ -313,14 +352,14 @@ public class Engine implements SessionFactory {
      * @param correct if the user name or the password was correct
      * @throws DbException the exception 'wrong user or password'
      */
-    private void validateUserAndPassword(boolean correct) {
+    private static void validateUserAndPassword(boolean correct) {
         int min = SysProperties.DELAY_WRONG_PASSWORD_MIN;
         if (correct) {
-            long delay = wrongPasswordDelay;
+            long delay = WRONG_PASSWORD_DELAY;
             if (delay > min && delay > 0) {
                 // the first correct password must be blocked,
                 // otherwise parallel attacks are possible
-                synchronized (INSTANCE) {
+                synchronized (Engine.class) {
                     // delay up to the last delay
                     // an attacker can't know how long it will be
                     delay = MathUtils.secureRandomInt((int) delay);
@@ -329,21 +368,21 @@ public class Engine implements SessionFactory {
                     } catch (InterruptedException e) {
                         // ignore
                     }
-                    wrongPasswordDelay = min;
+                    WRONG_PASSWORD_DELAY = min;
                 }
             }
         } else {
             // this method is not synchronized on the Engine, so that
             // regular successful attempts are not blocked
-            synchronized (INSTANCE) {
-                long delay = wrongPasswordDelay;
+            synchronized (Engine.class) {
+                long delay = WRONG_PASSWORD_DELAY;
                 int max = SysProperties.DELAY_WRONG_PASSWORD_MAX;
                 if (max <= 0) {
                     max = Integer.MAX_VALUE;
                 }
-                wrongPasswordDelay += wrongPasswordDelay;
-                if (wrongPasswordDelay > max || wrongPasswordDelay < 0) {
-                    wrongPasswordDelay = max;
+                WRONG_PASSWORD_DELAY += WRONG_PASSWORD_DELAY;
+                if (WRONG_PASSWORD_DELAY > max || WRONG_PASSWORD_DELAY < 0) {
+                    WRONG_PASSWORD_DELAY = max;
                 }
                 if (min > 0) {
                     // a bit more to protect against timing attacks
@@ -359,4 +398,14 @@ public class Engine implements SessionFactory {
         }
     }
 
+    private Engine() {
+    }
+
+    private static final class DatabaseHolder {
+
+        DatabaseHolder() {
+        }
+
+        volatile Database database;
+    }
 }

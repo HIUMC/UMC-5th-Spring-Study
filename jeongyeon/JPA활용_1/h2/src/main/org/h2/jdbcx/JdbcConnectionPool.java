@@ -1,5 +1,5 @@
 /*
- * Copyright 2004-2019 H2 Group. Multiple-Licensed under the MPL 2.0,
+ * Copyright 2004-2023 H2 Group. Multiple-Licensed under the MPL 2.0,
  * and the EPL 1.0 (https://h2database.com/html/license.html).
  * Initial Developer: Christian d'Heureuse, www.source-code.biz
  *
@@ -9,7 +9,7 @@
  * modify it under the terms of the GNU Lesser General Public
  * License as published by the Free Software Foundation, either
  * version 3 of the License, or (at your option) any later version.
- * See http://www.gnu.org/licenses/lgpl.html
+ * See https://www.gnu.org/licenses/lgpl-3.0.html
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied
@@ -24,7 +24,6 @@ import java.sql.Connection;
 import java.sql.SQLException;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.logging.Logger;
@@ -64,8 +63,8 @@ import org.h2.message.DbException;
  *      (<a href="http://www.source-code.biz">www.source-code.biz</a>)
  * @author Thomas Mueller
  */
-public class JdbcConnectionPool implements DataSource, ConnectionEventListener,
-        JdbcConnectionPoolBackwardsCompat {
+public final class JdbcConnectionPool
+        implements DataSource, ConnectionEventListener, JdbcConnectionPoolBackwardsCompat {
 
     private static final int DEFAULT_TIMEOUT = 30;
     private static final int DEFAULT_MAX_CONNECTIONS = 10;
@@ -78,7 +77,7 @@ public class JdbcConnectionPool implements DataSource, ConnectionEventListener,
     private AtomicInteger activeConnections = new AtomicInteger();
     private AtomicBoolean isDisposed = new AtomicBoolean();
 
-    protected JdbcConnectionPool(ConnectionPoolDataSource dataSource) {
+    private JdbcConnectionPool(ConnectionPoolDataSource dataSource) {
         this.dataSource = dataSource;
         if (dataSource != null) {
             try {
@@ -191,7 +190,7 @@ public class JdbcConnectionPool implements DataSource, ConnectionEventListener,
      */
     @Override
     public Connection getConnection() throws SQLException {
-        long max = System.nanoTime() + TimeUnit.SECONDS.toNanos(timeout);
+        long max = System.nanoTime() + timeout * 1_000_000_000L;
         int spin = 0;
         do {
             if (activeConnections.incrementAndGet() <= maxConnections) {
@@ -318,23 +317,33 @@ public class JdbcConnectionPool implements DataSource, ConnectionEventListener,
     }
 
     /**
-     * [Not supported] Return an object of this class if possible.
+     * Return an object of this class if possible.
      *
      * @param iface the class
+     * @return this
      */
     @Override
+    @SuppressWarnings("unchecked")
     public <T> T unwrap(Class<T> iface) throws SQLException {
-        throw DbException.getUnsupportedException("unwrap");
+        try {
+            if (isWrapperFor(iface)) {
+                return (T) this;
+            }
+            throw DbException.getInvalidValueException("iface", iface);
+        } catch (Exception e) {
+            throw DbException.toSQLException(e);
+        }
     }
 
     /**
-     * [Not supported] Checks if unwrap can return an object of this class.
+     * Checks if unwrap can return an object of this class.
      *
      * @param iface the class
+     * @return whether or not the interface is assignable from this class
      */
     @Override
     public boolean isWrapperFor(Class<?> iface) throws SQLException {
-        throw DbException.getUnsupportedException("isWrapperFor");
+        return iface != null && iface.isAssignableFrom(getClass());
     }
 
     /**

@@ -1,23 +1,27 @@
 /*
- * Copyright 2004-2019 H2 Group. Multiple-Licensed under the MPL 2.0,
+ * Copyright 2004-2023 H2 Group. Multiple-Licensed under the MPL 2.0,
  * and the EPL 1.0 (https://h2database.com/html/license.html).
  * Initial Developer: H2 Group
  */
 package org.h2.command.ddl;
 
 import java.util.ArrayList;
+import java.util.Collection;
 
 import org.h2.command.CommandInterface;
 import org.h2.engine.Database;
 import org.h2.engine.DbObject;
+import org.h2.engine.Right;
+import org.h2.engine.RightOwner;
 import org.h2.engine.Role;
-import org.h2.engine.Session;
+import org.h2.engine.SessionLocal;
 import org.h2.engine.User;
 import org.h2.schema.Schema;
 import org.h2.schema.SchemaObject;
 import org.h2.schema.Sequence;
 import org.h2.table.Table;
 import org.h2.table.TableType;
+import org.h2.value.ValueNull;
 
 /**
  * This class represents the statement
@@ -28,32 +32,32 @@ public class DropDatabase extends DefineCommand {
     private boolean dropAllObjects;
     private boolean deleteFiles;
 
-    public DropDatabase(Session session) {
+    public DropDatabase(SessionLocal session) {
         super(session);
     }
 
     @Override
-    public int update() {
+    public long update() {
         if (dropAllObjects) {
             dropAllObjects();
         }
         if (deleteFiles) {
-            session.getDatabase().setDeleteFilesOnDisconnect(true);
+            getDatabase().setDeleteFilesOnDisconnect(true);
         }
         return 0;
     }
 
     private void dropAllObjects() {
-        session.getUser().checkAdmin();
-        session.commit(true);
-        Database db = session.getDatabase();
+        User user = session.getUser();
+        user.checkAdmin();
+        Database db = getDatabase();
         db.lockMeta(session);
 
         // There can be dependencies between tables e.g. using computed columns,
         // so we might need to loop over them multiple times.
         boolean runLoopAgain;
         do {
-            ArrayList<Table> tables = db.getAllTablesAndViews(false);
+            ArrayList<Table> tables = db.getAllTablesAndViews();
             ArrayList<Table> toRemove = new ArrayList<>(tables.size());
             for (Table t : tables) {
                 if (t.getName() != null &&
@@ -94,54 +98,54 @@ public class DropDatabase extends DefineCommand {
         } while (runLoopAgain);
 
         // TODO session-local temp tables are not removed
-        for (Schema schema : db.getAllSchemas()) {
+        Collection<Schema> schemas = db.getAllSchemasNoMeta();
+        for (Schema schema : schemas) {
             if (schema.canDrop()) {
                 db.removeDatabaseObject(session, schema);
             }
         }
         ArrayList<SchemaObject> list = new ArrayList<>();
-        for (SchemaObject obj : db.getAllSchemaObjects(DbObject.SEQUENCE))  {
-            // ignore these. the ones we want to drop will get dropped when we
-            // drop their associated tables, and we will ignore the problematic
-            // ones that belong to session-local temp tables.
-            if (!((Sequence) obj).getBelongsToTable()) {
-                list.add(obj);
+        for (Schema schema : schemas) {
+            for (Sequence sequence : schema.getAllSequences()) {
+                // ignore these. the ones we want to drop will get dropped when we
+                // drop their associated tables, and we will ignore the problematic
+                // ones that belong to session-local temp tables.
+                if (!sequence.getBelongsToTable()) {
+                    list.add(sequence);
+                }
             }
         }
         // maybe constraints and triggers on system tables will be allowed in
         // the future
-        list.addAll(db.getAllSchemaObjects(DbObject.CONSTRAINT));
-        list.addAll(db.getAllSchemaObjects(DbObject.TRIGGER));
-        list.addAll(db.getAllSchemaObjects(DbObject.CONSTANT));
-        list.addAll(db.getAllSchemaObjects(DbObject.FUNCTION_ALIAS));
+        addAll(schemas, DbObject.CONSTRAINT, list);
+        addAll(schemas, DbObject.TRIGGER, list);
+        addAll(schemas, DbObject.CONSTANT, list);
+        // Function aliases and aggregates are stored together
+        addAll(schemas, DbObject.FUNCTION_ALIAS, list);
+        addAll(schemas, DbObject.DOMAIN, list);
         for (SchemaObject obj : list) {
-            if (obj.isHidden()) {
+            if (!obj.getSchema().isValid() || obj.isHidden()) {
                 continue;
             }
             db.removeSchemaObject(session, obj);
         }
-        for (User user : db.getAllUsers()) {
-            if (user != session.getUser()) {
-                db.removeDatabaseObject(session, user);
+        Role publicRole = db.getPublicRole();
+        for (RightOwner rightOwner : db.getAllUsersAndRoles()) {
+            if (rightOwner != user && rightOwner != publicRole) {
+                db.removeDatabaseObject(session, rightOwner);
             }
         }
-        for (Role role : db.getAllRoles()) {
-            String sql = role.getCreateSQL();
-            // the role PUBLIC must not be dropped
-            if (sql != null) {
-                db.removeDatabaseObject(session, role);
-            }
+        for (Right right : db.getAllRights()) {
+            db.removeDatabaseObject(session, right);
         }
-        ArrayList<DbObject> dbObjects = new ArrayList<>();
-        dbObjects.addAll(db.getAllRights());
-        dbObjects.addAll(db.getAllAggregates());
-        dbObjects.addAll(db.getAllDomains());
-        for (DbObject obj : dbObjects) {
-            String sql = obj.getCreateSQL();
-            // the role PUBLIC must not be dropped
-            if (sql != null) {
-                db.removeDatabaseObject(session, obj);
-            }
+        for (SessionLocal s : db.getSessions(false)) {
+            s.setLastIdentity(ValueNull.INSTANCE);
+        }
+    }
+
+    private static void addAll(Collection<Schema> schemas, int type, ArrayList<SchemaObject> list) {
+        for (Schema schema : schemas) {
+            schema.getAll(type, list);
         }
     }
 

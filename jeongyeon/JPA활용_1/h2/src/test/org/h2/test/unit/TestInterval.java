@@ -1,5 +1,5 @@
 /*
- * Copyright 2004-2019 H2 Group. Multiple-Licensed under the MPL 2.0,
+ * Copyright 2004-2023 H2 Group. Multiple-Licensed under the MPL 2.0,
  * and the EPL 1.0 (https://h2database.com/html/license.html).
  * Initial Developer: H2 Group
  */
@@ -27,7 +27,7 @@ public class TestInterval extends TestBase {
      *            ignored
      */
     public static void main(String... a) throws Exception {
-        TestBase.createCaller().init().test();
+        TestBase.createCaller().init().testFromMain();
     }
 
     @Override
@@ -68,12 +68,7 @@ public class TestInterval extends TestBase {
     }
 
     private void testOfYearsBad(long years) {
-        try {
-            Interval.ofYears(years);
-            fail();
-        } catch (IllegalArgumentException e) {
-            // OK
-        }
+        assertThrows(IllegalArgumentException.class, () -> Interval.ofYears(years));
     }
 
     private void testOfMonths() {
@@ -95,12 +90,7 @@ public class TestInterval extends TestBase {
     }
 
     private void testOfMonthsBad(long months) {
-        try {
-            Interval.ofMonths(months);
-            fail();
-        } catch (IllegalArgumentException e) {
-            // OK
-        }
+        assertThrows(IllegalArgumentException.class, () -> Interval.ofMonths(months));
     }
 
     private void testOfDays() {
@@ -122,12 +112,7 @@ public class TestInterval extends TestBase {
     }
 
     private void testOfDaysBad(long days) {
-        try {
-            Interval.ofDays(days);
-            fail();
-        } catch (IllegalArgumentException e) {
-            // OK
-        }
+        assertThrows(IllegalArgumentException.class, () -> Interval.ofDays(days));
     }
 
     private void testOfHours() {
@@ -149,12 +134,7 @@ public class TestInterval extends TestBase {
     }
 
     private void testOfHoursBad(long hours) {
-        try {
-            Interval.ofHours(hours);
-            fail();
-        } catch (IllegalArgumentException e) {
-            // OK
-        }
+        assertThrows(IllegalArgumentException.class, () -> Interval.ofHours(hours));
     }
 
     private void testOfMinutes() {
@@ -176,12 +156,7 @@ public class TestInterval extends TestBase {
     }
 
     private void testOfMinutesBad(long minutes) {
-        try {
-            Interval.ofMinutes(minutes);
-            fail();
-        } catch (IllegalArgumentException e) {
-            // OK
-        }
+        assertThrows(IllegalArgumentException.class, () -> Interval.ofMinutes(minutes));
     }
 
     private void testOfSeconds() {
@@ -203,12 +178,7 @@ public class TestInterval extends TestBase {
     }
 
     private void testOfSecondsBad(long seconds) {
-        try {
-            Interval.ofSeconds(seconds);
-            fail();
-        } catch (IllegalArgumentException e) {
-            // OK
-        }
+        assertThrows(IllegalArgumentException.class, () -> Interval.ofSeconds(seconds));
     }
 
     private void testOfSeconds2() {
@@ -250,12 +220,7 @@ public class TestInterval extends TestBase {
     }
 
     private void testOfSeconds2Bad(long seconds, int nanos) {
-        try {
-            Interval.ofSeconds(seconds, nanos);
-            fail();
-        } catch (IllegalArgumentException e) {
-            // OK
-        }
+        assertThrows(IllegalArgumentException.class, () -> Interval.ofSeconds(seconds, nanos));
     }
 
     private void testOfNanos() {
@@ -269,7 +234,7 @@ public class TestInterval extends TestBase {
     private void testOfNanosGood(long nanos) {
         Interval i = Interval.ofNanos(nanos);
         long seconds = nanos / NANOS_PER_SECOND;
-        long nanosOfSecond = nanos % NANOS_PER_SECOND;
+        int nanosOfSecond = (int) (nanos % NANOS_PER_SECOND);
         assertEquals(seconds, i.getSeconds());
         assertEquals(nanosOfSecond, i.getNanosOfSecond());
         assertEquals(nanos, i.getSecondsAndNanos());
@@ -317,12 +282,7 @@ public class TestInterval extends TestBase {
     }
 
     private void testOfYearsMonthsBad(long years, int months) {
-        try {
-            Interval.ofYearsMonths(years, months);
-            fail();
-        } catch (IllegalArgumentException e) {
-            // OK
-        }
+        assertThrows(IllegalArgumentException.class, () -> Interval.ofYearsMonths(years, months));
     }
 
     private void testOfDaysHours() {
@@ -351,18 +311,13 @@ public class TestInterval extends TestBase {
             b.append('-');
         }
         b.append(Math.abs(days)).append(' ');
-        StringUtils.appendZeroPadded(b, 2, Math.abs(hours));
+        StringUtils.appendTwoDigits(b, Math.abs(hours));
         b.append("' DAY TO HOUR");
         assertEquals(b.toString(), i.toString());
     }
 
     private void testOfDaysHoursBad(long days, int hours) {
-        try {
-            Interval.ofDaysHours(days, hours);
-            fail();
-        } catch (IllegalArgumentException e) {
-            // OK
-        }
+        assertThrows(IllegalArgumentException.class, () -> Interval.ofDaysHours(days, hours));
     }
 
     private void testOfDaysHoursMinutes() {
@@ -397,20 +352,15 @@ public class TestInterval extends TestBase {
             b.append('-');
         }
         b.append(Math.abs(days)).append(' ');
-        StringUtils.appendZeroPadded(b, 2, Math.abs(hours));
+        StringUtils.appendTwoDigits(b, Math.abs(hours));
         b.append(':');
-        StringUtils.appendZeroPadded(b, 2, Math.abs(minutes));
+        StringUtils.appendTwoDigits(b, Math.abs(minutes));
         b.append("' DAY TO MINUTE");
         assertEquals(b.toString(), i.toString());
     }
 
     private void testOfDaysHoursMinutesBad(long days, int hours, int minutes) {
-        try {
-            Interval.ofDaysHoursMinutes(days, hours, minutes);
-            fail();
-        } catch (IllegalArgumentException e) {
-            // OK
-        }
+        assertThrows(IllegalArgumentException.class, () -> Interval.ofDaysHoursMinutes(days, hours, minutes));
     }
 
     private void testOfDaysHoursMinutesSeconds() {
@@ -453,22 +403,18 @@ public class TestInterval extends TestBase {
             b.append('-');
         }
         b.append(Math.abs(days)).append(' ');
-        StringUtils.appendZeroPadded(b, 2, Math.abs(hours));
+        StringUtils.appendTwoDigits(b, Math.abs(hours));
         b.append(':');
-        StringUtils.appendZeroPadded(b, 2, Math.abs(minutes));
+        StringUtils.appendTwoDigits(b, Math.abs(minutes));
         b.append(':');
-        StringUtils.appendZeroPadded(b, 2, Math.abs(seconds));
+        StringUtils.appendTwoDigits(b, Math.abs(seconds));
         b.append("' DAY TO SECOND");
         assertEquals(b.toString(), i.toString());
     }
 
     private void testOfDaysHoursMinutesSecondsBad(long days, int hours, int minutes, int seconds) {
-        try {
-            Interval.ofDaysHoursMinutesSeconds(days, hours, minutes, seconds);
-            fail();
-        } catch (IllegalArgumentException e) {
-            // OK
-        }
+        assertThrows(IllegalArgumentException.class,
+                () -> Interval.ofDaysHoursMinutesSeconds(days, hours, minutes, seconds));
     }
 
     private void testOfHoursMinutes() {
@@ -497,18 +443,13 @@ public class TestInterval extends TestBase {
             b.append('-');
         }
         b.append(Math.abs(hours)).append(':');
-        StringUtils.appendZeroPadded(b, 2, Math.abs(minutes));
+        StringUtils.appendTwoDigits(b, Math.abs(minutes));
         b.append("' HOUR TO MINUTE");
         assertEquals(b.toString(), i.toString());
     }
 
     private void testOfHoursMinutesBad(long hours, int minutes) {
-        try {
-            Interval.ofHoursMinutes(hours, minutes);
-            fail();
-        } catch (IllegalArgumentException e) {
-            // OK
-        }
+        assertThrows(IllegalArgumentException.class, () -> Interval.ofHoursMinutes(hours, minutes));
     }
 
     private void testOfHoursMinutesSeconds() {
@@ -545,20 +486,15 @@ public class TestInterval extends TestBase {
             b.append('-');
         }
         b.append(Math.abs(hours)).append(':');
-        StringUtils.appendZeroPadded(b, 2, Math.abs(minutes));
+        StringUtils.appendTwoDigits(b, Math.abs(minutes));
         b.append(':');
-        StringUtils.appendZeroPadded(b, 2, Math.abs(seconds));
+        StringUtils.appendTwoDigits(b, Math.abs(seconds));
         b.append("' HOUR TO SECOND");
         assertEquals(b.toString(), i.toString());
     }
 
     private void testOfHoursMinutesSecondsBad(long hours, int minutes, int seconds) {
-        try {
-            Interval.ofHoursMinutesSeconds(hours, minutes, seconds);
-            fail();
-        } catch (IllegalArgumentException e) {
-            // OK
-        }
+        assertThrows(IllegalArgumentException.class, () -> Interval.ofHoursMinutesSeconds(hours, minutes, seconds));
     }
 
     private void testOfMinutesSeconds() {
@@ -589,18 +525,13 @@ public class TestInterval extends TestBase {
             b.append('-');
         }
         b.append(Math.abs(minutes)).append(':');
-        StringUtils.appendZeroPadded(b, 2, Math.abs(seconds));
+        StringUtils.appendTwoDigits(b, Math.abs(seconds));
         b.append("' MINUTE TO SECOND");
         assertEquals(b.toString(), i.toString());
     }
 
     private void testOfMinutesSecondsBad(long minutes, int seconds) {
-        try {
-            Interval.ofMinutesSeconds(minutes, seconds);
-            fail();
-        } catch (IllegalArgumentException e) {
-            // OK
-        }
+        assertThrows(IllegalArgumentException.class, () -> Interval.ofMinutesSeconds(minutes, seconds));
     }
 
     private static void stripTrailingZeroes(StringBuilder b) {

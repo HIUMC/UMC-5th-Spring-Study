@@ -1,6 +1,6 @@
 <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
 <!--
-Copyright 2004-2019 H2 Group. Multiple-Licensed under the MPL 2.0,
+Copyright 2004-2023 H2 Group. Multiple-Licensed under the MPL 2.0,
 and the EPL 1.0 (https://h2database.com/html/license.html).
 Initial Developer: H2 Group
 -->
@@ -74,6 +74,7 @@ translate -->
 <a href="installation.html">Installation</a><br />
 <a href="tutorial.html">Tutorial</a><br />
 <a href="features.html">Features</a><br />
+<a href="security.html">Security</a><br />
 <a href="performance.html">Performance</a><br />
 <a href="advanced.html">Advanced</a><br />
 <br />
@@ -87,22 +88,21 @@ translate -->
 <a href="grammar.html">SQL Grammar</a><br />
 <a href="systemtables.html">System Tables</a><br />
 <a href="../javadoc/index.html">Javadoc</a><br />
-<a href="../h2.pdf">PDF (1.5 MB)</a><br />
+<a href="https://github.com/h2database/h2database/releases/download/version-2.2.224/h2.pdf">PDF (2 MB)</a><br />
 <br />
 <b>Support</b><br />
 <a href="faq.html">FAQ</a><br />
 <a href="sourceError.html">Error Analyzer</a><br />
-<a href="https://groups.google.com/group/h2-database">Google Group (English)</a><br />
-<a href="https://groups.google.co.jp/group/h2-database-jp">Google Group (Japanese)</a><br />
-<a href="https://groups.google.com/group/h2-cn">Google Group (Chinese)</a><br />
+<a href="https://groups.google.com/g/h2-database">Google Group</a><br />
 <br />
 <b>Appendix</b><br />
-<a href="history.html">History &amp; Roadmap</a><br />
+<a href="history.html">History</a><br />
 <a href="license.html">License</a><br />
 <a href="build.html">Build</a><br />
 <a href="links.html">Links</a><br />
 <a href="mvstore.html">MVStore</a><br />
 <a href="architecture.html">Architecture</a><br />
+<a href="migration-to-v2.html">Migration to 2.0</a><br />
 <br />
 
 </div>
@@ -244,10 +244,12 @@ syntax-end -->
 </table>
 <!-- railroad-end -->
 
-<!-- railroad-start -->
 <h2>Details</h2>
-<p>Click on the header to switch between railroad diagram and BNF.</p>
+<!-- railroad-start -->
+<p>Click on the header of the function to switch between railroad diagram and BNF.</p>
 <!-- railroad-end -->
+<p>Non-standard syntax is marked in green. Compatibility-only non-standard syntax is marked in red,
+don't use it unless you need it for compatibility with other databases or old versions of H2.</p>
 
 <h2>Row Number Function</h2>
 
@@ -470,17 +472,17 @@ syntax-end -->
 <h3 id="ratio_to_report" class="notranslate" onclick="switchBnf(this)">RATIO_TO_REPORT</h3>
 <!-- railroad-start -->
 <pre name="bnf" style="display: none">
-RATIO_TO_REPORT(<a href="grammar.html#value">value</a>)
-OVER <a href="grammar.html#window_name_or_specification">windowNameOrSpecification</a>
+<span class="ruleH2">RATIO_TO_REPORT(<a href="grammar.html#value">value</a>)
+OVER <a href="grammar.html#window_name_or_specification">windowNameOrSpecification</a></span>
 </pre>
 <div name="railroad">
-<table class="railroad"><tr class="railroad"><td class="d"><code class="c">RATIO_TO_REPORT ( <a href="grammar.html#value">value</a> )</code></td></tr></table><br /><table class="railroad"><tr class="railroad"><td class="d"><code class="c">OVER <a href="grammar.html#window_name_or_specification">windowNameOrSpecification</a></code></td></tr></table>
+<div class="ruleH2"><table class="railroad"><tr class="railroad"><td class="d"><code class="c">RATIO_TO_REPORT ( <a href="grammar.html#value">value</a> )</code></td></tr></table></div><br /><div class="ruleH2"><table class="railroad"><tr class="railroad"><td class="d"><code class="c">OVER <a href="grammar.html#window_name_or_specification">windowNameOrSpecification</a></code></td></tr></table></div>
 </div>
 <!-- railroad-end -->
 <!-- syntax-start
 <pre>
-RATIO_TO_REPORT(<a href="grammar.html#value">value</a>)
-OVER <a href="grammar.html#window_name_or_specification">windowNameOrSpecification</a>
+<span class="ruleH2">RATIO_TO_REPORT(<a href="grammar.html#value">value</a>)
+OVER <a href="grammar.html#window_name_or_specification">windowNameOrSpecification</a></span>
 </pre>
 syntax-end -->
 <p>Returns the ratio of a value to the sum of all values. If argument is <code>NULL</code> or sum of all values is 0, then the value of function is <code>NULL</code>. Window ordering and window frame clauses are not allowed for this function.</p><p>Window functions in H2 may require a lot of memory for large queries.</p>

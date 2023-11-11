@@ -1,5 +1,5 @@
 /*
- * Copyright 2004-2019 H2 Group. Multiple-Licensed under the MPL 2.0,
+ * Copyright 2004-2023 H2 Group. Multiple-Licensed under the MPL 2.0,
  * and the EPL 1.0 (https://h2database.com/html/license.html).
  * Initial Developer: H2 Group
  */
@@ -13,6 +13,7 @@ import org.h2.message.DbException;
 import org.h2.value.Transfer;
 import org.h2.value.TypeInfo;
 import org.h2.value.Value;
+import org.h2.value.ValueLob;
 
 /**
  * A client side (remote) parameter.
@@ -30,8 +31,8 @@ public class ParameterRemote implements ParameterInterface {
 
     @Override
     public void setValue(Value newValue, boolean closeOld) {
-        if (closeOld && value != null) {
-            value.remove();
+        if (closeOld && value instanceof ValueLob) {
+            ((ValueLob) value).remove();
         }
         value = newValue;
     }
@@ -67,6 +68,7 @@ public class ParameterRemote implements ParameterInterface {
      * Read the parameter meta data from the transfer object.
      *
      * @param transfer the transfer object
+     * @throws IOException on failure
      */
     public void readMetaData(Transfer transfer) throws IOException {
         type = transfer.readTypeInfo();
@@ -78,6 +80,7 @@ public class ParameterRemote implements ParameterInterface {
      *
      * @param transfer the transfer object
      * @param p the parameter
+     * @throws IOException on failure
      */
     public static void writeMetaData(Transfer transfer, ParameterInterface p) throws IOException {
         transfer.writeTypeInfo(p.getType()).writeInt(p.getNullable());

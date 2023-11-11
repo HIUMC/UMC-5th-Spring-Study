@@ -1,5 +1,5 @@
 /*
- * Copyright 2004-2019 H2 Group. Multiple-Licensed under the MPL 2.0,
+ * Copyright 2004-2023 H2 Group. Multiple-Licensed under the MPL 2.0,
  * and the EPL 1.0 (https://h2database.com/html/license.html).
  * Initial Developer: H2 Group
  */
@@ -12,11 +12,9 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.PrintWriter;
 import java.io.Reader;
-import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
-import java.lang.reflect.Modifier;
 import java.lang.reflect.Proxy;
 import java.nio.channels.FileChannel;
 import java.nio.channels.FileLock;
@@ -29,19 +27,23 @@ import java.sql.Statement;
 import java.sql.Types;
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
+import java.time.LocalTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.Objects;
 import java.util.SimpleTimeZone;
+import java.util.concurrent.Callable;
 import java.util.concurrent.TimeUnit;
 
-import org.h2.engine.SysProperties;
+import org.h2.engine.SessionLocal;
 import org.h2.jdbc.JdbcConnection;
 import org.h2.message.DbException;
+import org.h2.mvstore.MVStoreException;
 import org.h2.store.fs.FilePath;
 import org.h2.store.fs.FileUtils;
-import org.h2.test.utils.ProxyCodeGenerator;
 import org.h2.test.utils.ResultVerifier;
+import org.h2.util.StringUtils;
 import org.h2.util.Utils;
 
 /**
@@ -70,6 +72,11 @@ public abstract class TestBase {
     private static String baseDir = getTestDir("");
 
     /**
+     * The maximum size of byte array.
+     */
+    private static final int MAX_ARRAY_SIZE = Integer.MAX_VALUE - 8;
+
+    /**
      * The test configuration.
      */
     public TestAll config;
@@ -81,7 +88,7 @@ public abstract class TestBase {
 
     private final LinkedList<byte[]> memory = new LinkedList<>();
 
-    private static final SimpleDateFormat dateFormat = new SimpleDateFormat("HH:mm:ss");
+    private static final DateTimeFormatter timeFormat = DateTimeFormatter.ofPattern("HH:mm:ss");
 
     /**
      * Get the test directory for this test.
@@ -130,9 +137,7 @@ public abstract class TestBase {
         try {
             init(conf);
             if (!isEnabled()) {
-                if (!conf.executedTests.containsKey(getClass())) {
-                    conf.executedTests.put(getClass(), false);
-                }
+                conf.executedTests.putIfAbsent(getClass(), false);
                 return;
             }
             conf.executedTests.put(getClass(), true);
@@ -398,7 +403,7 @@ public abstract class TestBase {
     public void println(String s) {
         long now = System.nanoTime();
         long time = TimeUnit.NANOSECONDS.toMillis(now - start);
-        printlnWithTime(time, getClass().getName() + " " + s);
+        printlnWithTime(time, getClass().getName() + ' ' + s);
     }
 
     /**
@@ -408,9 +413,9 @@ public abstract class TestBase {
      * @param s the message
      */
     static synchronized void printlnWithTime(long millis, String s) {
-        s = dateFormat.format(new java.util.Date()) + " " +
-                formatTime(millis) + " " + s;
-        System.out.println(s);
+        StringBuilder builder = new StringBuilder(s.length() + 19);
+        timeFormat.formatTo(LocalTime.now(), builder);
+        System.out.println(formatTime(builder.append(' '), millis).append(' ').append(s).toString());
     }
 
     /**
@@ -419,24 +424,32 @@ public abstract class TestBase {
      * @param s the message
      */
     protected void printTime(String s) {
-        SimpleDateFormat dateFormat = new SimpleDateFormat("HH:mm:ss");
-        println(dateFormat.format(new java.util.Date()) + " " + s);
+        StringBuilder builder = new StringBuilder(s.length() + 9);
+        timeFormat.formatTo(LocalTime.now(), builder);
+        println(builder.append(' ').append(s).toString());
     }
 
     /**
-     * Format the time in the format hh:mm:ss.1234 where 1234 is milliseconds.
+     * Format the time in the format mm:ss.123 or hh:mm:ss.123 where 123 is
+     * milliseconds.
      *
-     * @param millis the time in milliseconds
-     * @return the formatted time
+     * @param builder the string builder to append to
+     * @param millis the time in milliseconds, non-negative
+     * @return the specified string builder
      */
-    static String formatTime(long millis) {
-        String s = new java.sql.Time(
-                java.sql.Time.valueOf("0:0:0").getTime() + millis).toString() +
-                "." + ("" + (1000 + (millis % 1000))).substring(1);
-        if (s.startsWith("00:")) {
-            s = s.substring(3);
+    static StringBuilder formatTime(StringBuilder builder, long millis) {
+        int s = (int) (millis / 1_000);
+        int m = s / 60;
+        s %= 60;
+        int h = m / 60;
+        if (h != 0) {
+            builder.append(h).append(':');
+            m %= 60;
         }
-        return s;
+        StringUtils.appendTwoDigits(builder, m).append(':');
+        StringUtils.appendTwoDigits(builder, s).append('.');
+        StringUtils.appendZeroPadded(builder, 3, (int) (millis % 1_000));
+        return builder;
     }
 
     /**
@@ -452,6 +465,18 @@ public abstract class TestBase {
      * @throws Exception if an exception in the test occurs
      */
     public abstract void test() throws Exception;
+
+    /**
+     * Only called from individual test classes main() method,
+     * makes sure to run the before/after stuff.
+     *
+     * @throws Exception if an exception in the test occurs
+     */
+    public final void testFromMain() throws Exception {
+        config.beforeTest();
+        test();
+        config.afterTest();
+    }
 
     /**
      * Check if two values are equal, and if not throw an exception.
@@ -1025,20 +1050,19 @@ public abstract class TestBase {
                     assertEquals("java.lang.Integer", className);
                     break;
                 case Types.VARCHAR:
-                    assertEquals("VARCHAR", typeName);
+                    assertEquals("CHARACTER VARYING", typeName);
                     assertEquals("java.lang.String", className);
                     break;
                 case Types.SMALLINT:
                     assertEquals("SMALLINT", typeName);
-                    assertEquals(SysProperties.OLD_RESULT_SET_GET_OBJECT ? "java.lang.Short" : "java.lang.Integer",
-                            className);
+                    assertEquals("java.lang.Integer", className);
                     break;
                 case Types.TIMESTAMP:
                     assertEquals("TIMESTAMP", typeName);
                     assertEquals("java.sql.Timestamp", className);
                     break;
-                case Types.DECIMAL:
-                    assertEquals("DECIMAL", typeName);
+                case Types.NUMERIC:
+                    assertEquals("NUMERIC", typeName);
                     assertEquals("java.math.BigDecimal", className);
                     break;
                 default:
@@ -1066,11 +1090,25 @@ public abstract class TestBase {
      *
      * @param rs the result set
      * @param data the expected data
+     * @param ignoreColumns columns to ignore, or {@code null}
+     * @throws AssertionError if there is a mismatch
+     */
+    protected void assertResultSetOrdered(ResultSet rs, String[][] data, int[] ignoreColumns)
+            throws SQLException {
+        assertResultSet(true, rs, data, ignoreColumns);
+    }
+
+    /**
+     * Check if a result set contains the expected data.
+     * The sort order is significant
+     *
+     * @param rs the result set
+     * @param data the expected data
      * @throws AssertionError if there is a mismatch
      */
     protected void assertResultSetOrdered(ResultSet rs, String[][] data)
             throws SQLException {
-        assertResultSet(true, rs, data);
+        assertResultSet(true, rs, data, null);
     }
 
     /**
@@ -1079,9 +1117,10 @@ public abstract class TestBase {
      * @param ordered if the sort order is significant
      * @param rs the result set
      * @param data the expected data
+     * @param ignoreColumns columns to ignore, or {@code null}
      * @throws AssertionError if there is a mismatch
      */
-    private void assertResultSet(boolean ordered, ResultSet rs, String[][] data)
+    private void assertResultSet(boolean ordered, ResultSet rs, String[][] data, int[] ignoreColumns)
             throws SQLException {
         int len = rs.getMetaData().getColumnCount();
         int rows = data.length;
@@ -1102,7 +1141,7 @@ public abstract class TestBase {
             String[] row = getData(rs, len);
             if (ordered) {
                 String[] good = data[i];
-                if (!testRow(good, row, good.length)) {
+                if (!testRow(good, row, good.length, ignoreColumns)) {
                     fail("testResultSet row not equal, got:\n" + formatRow(row)
                             + "\n" + formatRow(good));
                 }
@@ -1110,7 +1149,7 @@ public abstract class TestBase {
                 boolean found = false;
                 for (int j = 0; j < rows; j++) {
                     String[] good = data[i];
-                    if (testRow(good, row, good.length)) {
+                    if (testRow(good, row, good.length, ignoreColumns)) {
                         found = true;
                         break;
                     }
@@ -1127,8 +1166,15 @@ public abstract class TestBase {
         }
     }
 
-    private static boolean testRow(String[] a, String[] b, int len) {
-        for (int i = 0; i < len; i++) {
+    private static boolean testRow(String[] a, String[] b, int len, int[] ignoreColumns) {
+        loop: for (int i = 0; i < len; i++) {
+            if (ignoreColumns != null) {
+                for (int c : ignoreColumns) {
+                    if (c == i) {
+                        continue loop;
+                    }
+                }
+            }
             String sa = a[i];
             String sb = b[i];
             if (sa == null || sb == null) {
@@ -1170,7 +1216,7 @@ public abstract class TestBase {
      * @param conn the database connection
      */
     protected void crash(Connection conn) {
-        ((JdbcConnection) conn).setPowerOffCount(1);
+        setPowerOffCount(conn, 1);
         try {
             conn.createStatement().execute("SET WRITE_DELAY 0");
             conn.createStatement().execute("CREATE TABLE TEST_A(ID INT)");
@@ -1183,6 +1229,31 @@ public abstract class TestBase {
         } catch (SQLException e) {
             // ignore
         }
+    }
+
+    /**
+     * Set the number of disk operations before power failure is simulated.
+     * To disable the countdown, use 0.
+     *
+     * @param conn the connection
+     * @param i the number of operations
+     */
+    public static void setPowerOffCount(Connection conn, int i) {
+        SessionLocal session = (SessionLocal) ((JdbcConnection) conn).getSession();
+        if (session != null) {
+            session.getDatabase().setPowerOffCount(i);
+        }
+    }
+
+    /**
+     * Returns the number of disk operations before power failure is simulated.
+     *
+     * @param conn the connection
+     * @return the number of disk operations before power failure is simulated
+     */
+    protected static int getPowerOffCount(Connection conn) {
+        SessionLocal session = (SessionLocal) ((JdbcConnection) conn).getSession();
+        return session != null && !session.isClosed() ? session.getDatabase().getPowerOffCount() : 0;
     }
 
     /**
@@ -1261,8 +1332,7 @@ public abstract class TestBase {
     protected void assertEqualDatabases(Statement stat1, Statement stat2)
             throws SQLException {
         ResultSet rs = stat1.executeQuery(
-                "select value from information_schema.settings " +
-                "where name='ANALYZE_AUTO'");
+                "SELECT SETTING_VALUE FROM INFORMATION_SCHEMA.SETTINGS WHERE SETTING_NAME = 'ANALYZE_AUTO'");
         int analyzeAuto = rs.next() ? rs.getInt(1) : 0;
         if (analyzeAuto > 0) {
             stat1.execute("analyze");
@@ -1343,11 +1413,11 @@ public abstract class TestBase {
      * @param remainingKB the number of kilobytes that are not referenced
      */
     protected void eatMemory(int remainingKB) {
-        int memoryFreeKB;
+        long memoryFreeKB;
         try {
             while ((memoryFreeKB = Utils.getMemoryFree()) > remainingKB) {
-                byte[] block = new byte[Math.max((memoryFreeKB - remainingKB) / 16, 16) * 1024];
-                memory.add(block);
+                long blockSize = Math.max((memoryFreeKB - remainingKB) / 16, 16) * 1024;
+                memory.add(new byte[blockSize > MAX_ARRAY_SIZE ? MAX_ARRAY_SIZE : (int) blockSize]);
             }
         } catch (OutOfMemoryError e) {
             if (remainingKB >= 3000) { // OOM is not expected
@@ -1381,34 +1451,40 @@ public abstract class TestBase {
      */
     protected <T> T assertThrows(final Class<?> expectedExceptionClass,
             final T obj) {
-        return assertThrows(new ResultVerifier() {
-            @Override
-            public boolean verify(Object returnValue, Throwable t, Method m,
-                    Object... args) {
-                if (t == null) {
-                    throw new AssertionError("Expected an exception of type " +
-                            expectedExceptionClass.getSimpleName() +
-                            " to be thrown, but the method returned " +
-                            returnValue +
-                            " for " + ProxyCodeGenerator.formatMethodCall(m, args));
-                }
-                if (!expectedExceptionClass.isAssignableFrom(t.getClass())) {
-                    AssertionError ae = new AssertionError(
-                            "Expected an exception of type\n" +
-                                    expectedExceptionClass.getSimpleName() +
-                                    " to be thrown, but the method under test " +
-                                    "threw an exception of type\n" +
-                                    t.getClass().getSimpleName() +
-                                    " (see in the 'Caused by' for the exception " +
-                                    "that was thrown) " +
-                                    " for " + ProxyCodeGenerator.
-                                    formatMethodCall(m, args));
-                    ae.initCause(t);
-                    throw ae;
-                }
-                return false;
+        return assertThrows((returnValue, t, m, args) -> {
+            if (t == null) {
+                throw new AssertionError("Expected an exception of type " +
+                        expectedExceptionClass.getSimpleName() +
+                        " to be thrown, but the method returned " +
+                        returnValue +
+                        " for " + formatMethodCall(m, args));
             }
+            if (!expectedExceptionClass.isAssignableFrom(t.getClass())) {
+                AssertionError ae = new AssertionError("Expected an exception of type\n" +
+                        expectedExceptionClass.getSimpleName() +
+                        " to be thrown, but the method under test threw an exception of type\n" +
+                        t.getClass().getSimpleName() +
+                        " (see in the 'Caused by' for the exception that was thrown) for " +
+                        formatMethodCall(m, args));
+                ae.initCause(t);
+                throw ae;
+            }
+            return false;
         }, obj);
+    }
+
+    private static String formatMethodCall(Method m, Object... args) {
+        StringBuilder builder = new StringBuilder();
+        builder.append(m.getName()).append('(');
+        for (int i = 0; i < args.length; i++) {
+            Object a = args[i];
+            if (i > 0) {
+                builder.append(", ");
+            }
+            builder.append(a == null ? "null" : a.toString());
+        }
+        builder.append(")");
+        return builder.toString();
     }
 
     /**
@@ -1419,31 +1495,10 @@ public abstract class TestBase {
      * @param obj the object to wrap
      * @return a proxy for the object
      */
-    protected <T> T assertThrows(final int expectedErrorCode, final T obj) {
-        return assertThrows(new ResultVerifier() {
-            @Override
-            public boolean verify(Object returnValue, Throwable t, Method m,
-                    Object... args) {
-                int errorCode;
-                if (t instanceof DbException) {
-                    errorCode = ((DbException) t).getErrorCode();
-                } else if (t instanceof SQLException) {
-                    errorCode = ((SQLException) t).getErrorCode();
-                } else {
-                    errorCode = 0;
-                }
-                if (errorCode != expectedErrorCode) {
-                    AssertionError ae = new AssertionError(
-                            "Expected an SQLException or DbException with error code "
-                                    + expectedErrorCode
-                                    + ", but got a " + (t == null ? "null" :
-                                            t.getClass().getName() + " exception "
-                                    + " with error code " + errorCode));
-                    ae.initCause(t);
-                    throw ae;
-                }
-                return false;
-            }
+    protected <T> T assertThrows(int expectedErrorCode, T obj) {
+        return assertThrows((returnValue, t, m, args) -> {
+            checkErrorCode(expectedErrorCode, t);
+            return false;
         }, obj);
     }
 
@@ -1501,39 +1556,124 @@ public abstract class TestBase {
                 }
             }
         };
-        if (!ProxyCodeGenerator.isGenerated(c)) {
-            Class<?>[] interfaces = c.getInterfaces();
-            if (Modifier.isFinal(c.getModifiers())
-                    || (interfaces.length > 0 && getClass() != c)) {
-                // interface class proxies
-                if (interfaces.length == 0) {
-                    throw new RuntimeException("Can not create a proxy for the class " +
-                            c.getSimpleName() +
-                            " because it doesn't implement any interfaces and is final");
-                }
-                return (T) Proxy.newProxyInstance(c.getClassLoader(), interfaces, ih);
-            }
+        Class<?>[] interfaces = c.getInterfaces();
+        if (interfaces.length == 0) {
+            throw new RuntimeException("Can not create a proxy for the class " +
+                    c.getSimpleName() +
+                    " because it doesn't implement any interfaces and is final");
         }
+        return (T) Proxy.newProxyInstance(c.getClassLoader(), interfaces, ih);
+    }
+
+    @FunctionalInterface
+    protected interface VoidCallable {
+
+        /**
+         * call the lambda
+         */
+        void call() throws Exception;
+
+    }
+
+    /**
+     * Assert that the lambda function throws an exception of the expected class.
+     *
+     * @param expectedExceptionClass expected exception class
+     * @param c lambda function
+     */
+    protected void assertThrows(Class<?> expectedExceptionClass, Callable<?> c) {
         try {
-            Class<?> pc = ProxyCodeGenerator.getClassProxy(c);
-            Constructor<?> cons = pc
-                    .getConstructor(new Class<?>[] { InvocationHandler.class });
-            return (T) cons.newInstance(new Object[] { ih });
-        } catch (Exception e) {
-            throw new RuntimeException(e);
+            Object returnValue = c.call();
+            throw new AssertionError("Expected an exception of type " + expectedExceptionClass.getSimpleName()
+                    + " to be thrown, but the method returned " + returnValue);
+        } catch (Throwable t) {
+            checkException(expectedExceptionClass, t);
         }
     }
 
     /**
-     * Create a proxy class that extends the given class.
+     * Assert that the lambda function throws an exception of the expected class.
      *
-     * @param clazz the class
+     * @param expectedExceptionClass expected exception class
+     * @param c lambda function
      */
-    protected void createClassProxy(Class<?> clazz) {
+    protected void assertThrows(Class<?> expectedExceptionClass, VoidCallable c) {
         try {
-            ProxyCodeGenerator.getClassProxy(clazz);
-        } catch (Exception e) {
-            throw new RuntimeException(e);
+            c.call();
+            throw new AssertionError("Expected an exception of type " + expectedExceptionClass.getSimpleName()
+                    + " to be thrown, but the method returned successfully");
+        } catch (Throwable t) {
+            checkException(expectedExceptionClass, t);
+        }
+    }
+
+    /**
+     * Assert that the lambda function throws a SQLException or DbException with the
+     * expected error code.
+     *
+     * @param expectedErrorCode SQL error code
+     * @param c lambda function
+     */
+    protected void assertThrows(int expectedErrorCode, Callable<?> c) {
+        try {
+            Object returnValue = c.call();
+            throw new AssertionError("Expected an SQLException or DbException with error code " + expectedErrorCode
+                    + " to be thrown, but the method returned " + returnValue);
+        } catch (Throwable t) {
+            checkErrorCode(expectedErrorCode, t);
+        }
+    }
+
+    /**
+     * Assert that the lambda function throws a SQLException or DbException with the
+     * expected error code.
+     *
+     * @param expectedErrorCode SQL error code
+     * @param c lambda function
+     */
+    protected void assertThrows(int expectedErrorCode, VoidCallable c) {
+        try {
+            c.call();
+            throw new AssertionError("Expected an SQLException or DbException with error code " + expectedErrorCode
+                    + " to be thrown, but the method returned successfully");
+        } catch (Throwable t) {
+            checkErrorCode(expectedErrorCode, t);
+        }
+    }
+
+    private static void checkException(Class<?> expectedExceptionClass, Throwable t) throws AssertionError {
+        if (!expectedExceptionClass.isAssignableFrom(t.getClass())) {
+            AssertionError ae = new AssertionError("Expected an exception of type\n"
+                    + expectedExceptionClass.getSimpleName() + " to be thrown, but an exception of type\n"
+                    + t.getClass().getSimpleName() + " was thrown");
+            ae.initCause(t);
+            throw ae;
+        }
+    }
+
+    /**
+     * Verify that actual error code is the one expected
+     * @param expectedErrorCode to compare against
+     * @param t actual exception to extract error code from
+     * @throws AssertionError if code is unexpected
+     */
+    public static void checkErrorCode(int expectedErrorCode, Throwable t) throws AssertionError {
+        int errorCode;
+        if (t instanceof DbException) {
+            errorCode = ((DbException) t).getErrorCode();
+        } else if (t instanceof SQLException) {
+            errorCode = ((SQLException) t).getErrorCode();
+        } else if (t instanceof MVStoreException) {
+            errorCode = ((MVStoreException) t).getErrorCode();
+        } else {
+            errorCode = 0;
+        }
+        if (errorCode != expectedErrorCode) {
+            AssertionError ae = new AssertionError("Expected an SQLException or DbException with error code "
+                    + expectedErrorCode + ", but got a "
+                    + (t == null ? "null" : t.getClass().getName() + " exception " + " with error code " + errorCode));
+            ae.initCause(t);
+            throw ae;
         }
     }
 
@@ -1563,7 +1703,7 @@ public abstract class TestBase {
      * @param e the exception to throw
      */
     public static void throwException(Throwable e) {
-        TestBase.<RuntimeException>throwThis(e);
+        TestBase.throwThis(e);
     }
 
     @SuppressWarnings("unchecked")

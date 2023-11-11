@@ -1,4 +1,4 @@
--- Copyright 2004-2019 H2 Group. Multiple-Licensed under the MPL 2.0,
+-- Copyright 2004-2023 H2 Group. Multiple-Licensed under the MPL 2.0,
 -- and the EPL 1.0 (https://h2database.com/html/license.html).
 -- Initial Developer: H2 Group
 --
@@ -75,19 +75,19 @@ SHOW TABLES FROM SCH;
 > rows (ordered): 1
 
 SHOW COLUMNS FROM TEST_P;
-> FIELD TYPE         NULL KEY DEFAULT
-> ----- ------------ ---- --- -------
-> ID_P  INTEGER(10)  NO   PRI NULL
-> U_P   VARCHAR(255) YES  UNI NULL
-> N_P   INTEGER(10)  YES      1
+> FIELD TYPE                   NULL KEY DEFAULT
+> ----- ---------------------- ---- --- -------
+> ID_P  INTEGER                NO   PRI NULL
+> U_P   CHARACTER VARYING(255) YES  UNI NULL
+> N_P   INTEGER                YES      1
 > rows (ordered): 3
 
 SHOW COLUMNS FROM TEST_S FROM SCH;
-> FIELD TYPE         NULL KEY DEFAULT
-> ----- ------------ ---- --- -------
-> ID_S  INTEGER(10)  NO   PRI NULL
-> U_S   VARCHAR(255) YES  UNI NULL
-> N_S   INTEGER(10)  YES      1
+> FIELD TYPE                   NULL KEY DEFAULT
+> ----- ---------------------- ---- --- -------
+> ID_S  INTEGER                NO   PRI NULL
+> U_S   CHARACTER VARYING(255) YES  UNI NULL
+> N_S   INTEGER                YES      1
 > rows (ordered): 3
 
 SHOW DATABASES;

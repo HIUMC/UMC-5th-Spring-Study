@@ -1,5 +1,5 @@
 /*
- * Copyright 2004-2019 H2 Group. Multiple-Licensed under the MPL 2.0,
+ * Copyright 2004-2023 H2 Group. Multiple-Licensed under the MPL 2.0,
  * and the EPL 1.0 (https://h2database.com/html/license.html).
  * Initial Developer: H2 Group
  */
@@ -26,6 +26,7 @@ public class Function {
      * command line.
      *
      * @param args the command line parameters
+     * @throws Exception on failure
      */
     public static void main(String... args) throws Exception {
         Class.forName("org.h2.Driver");
@@ -34,8 +35,7 @@ public class Function {
         Statement stat = conn.createStatement();
 
         // Using a custom Java function
-        stat.execute("CREATE ALIAS IS_PRIME " +
-                "FOR \"org.h2.samples.Function.isPrime\" ");
+        stat.execute("CREATE ALIAS IS_PRIME FOR 'org.h2.samples.Function.isPrime'");
         ResultSet rs;
         rs = stat.executeQuery("SELECT IS_PRIME(X), X " +
                 "FROM SYSTEM_RANGE(1, 20) ORDER BY X");
@@ -64,8 +64,7 @@ public class Function {
         rs.close();
 
         // Using a custom function like table
-        stat.execute("CREATE ALIAS MATRIX " +
-                "FOR \"org.h2.samples.Function.getMatrix\" ");
+        stat.execute("CREATE ALIAS MATRIX FOR 'org.h2.samples.Function.getMatrix'");
         prep = conn.prepareStatement("SELECT * FROM MATRIX(?) " +
                 "ORDER BY X, Y");
         prep.setInt(1, 2);
@@ -111,6 +110,7 @@ public class Function {
      * @param conn the connection
      * @param sql the SQL statement
      * @return the result set
+     * @throws SQLException on failure
      */
     public static ResultSet query(Connection conn, String sql) throws SQLException {
         return conn.createStatement().executeQuery(sql);
@@ -135,6 +135,7 @@ public class Function {
      * @param conn the connection
      * @param size the number of x and y values
      * @return the result set with two columns
+     * @throws SQLException on failure
      */
     public static ResultSet getMatrix(Connection conn, Integer size)
             throws SQLException {

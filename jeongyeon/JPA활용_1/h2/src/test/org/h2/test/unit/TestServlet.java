@@ -1,5 +1,5 @@
 /*
- * Copyright 2004-2019 H2 Group. Multiple-Licensed under the MPL 2.0,
+ * Copyright 2004-2023 H2 Group. Multiple-Licensed under the MPL 2.0,
  * and the EPL 1.0 (https://h2database.com/html/license.html).
  * Initial Developer: H2 Group
  */
@@ -46,7 +46,7 @@ public class TestServlet extends TestDb {
      * @param a ignored
      */
     public static void main(String... a) throws Exception {
-        TestBase.createCaller().init().test();
+        TestBase.createCaller().init().testFromMain();
     }
 
     /**
@@ -342,6 +342,41 @@ public class TestServlet extends TestDb {
             throw new UnsupportedOperationException();
         }
 
+        @Override
+        public ServletRegistration.Dynamic addJspFile(String servletName, String jspFile) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public int getSessionTimeout() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public void setSessionTimeout(int sessionTimeout) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public String getRequestCharacterEncoding() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public void setRequestCharacterEncoding(String encoding) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public String getResponseCharacterEncoding() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public void setResponseCharacterEncoding(String encoding) {
+            throw new UnsupportedOperationException();
+        }
+
     }
 
     @Override
@@ -380,16 +415,16 @@ public class TestServlet extends TestDb {
         stat2.execute("SELECT * FROM T");
         stat2.execute("DROP TABLE T");
 
-        assertThrows(ErrorCode.TABLE_OR_VIEW_NOT_FOUND_1, stat1).
+        assertThrows(ErrorCode.TABLE_OR_VIEW_NOT_FOUND_DATABASE_EMPTY_1, stat1).
                 execute("SELECT * FROM T");
         conn2.close();
 
         listener.contextDestroyed(event);
 
         // listener must be stopped
-        assertThrows(ErrorCode.CONNECTION_BROKEN_1, this).getConnection(
-                "jdbc:h2:tcp://localhost:8888/" + getBaseDir() + "/servlet",
-                getUser(), getPassword());
+        assertThrows(ErrorCode.CONNECTION_BROKEN_1,
+                () -> getConnection("jdbc:h2:tcp://localhost:8888/" + getBaseDir() + "/servlet", getUser(),
+                        getPassword()));
 
         // connection must be closed
         assertThrows(ErrorCode.OBJECT_CLOSED, stat1).

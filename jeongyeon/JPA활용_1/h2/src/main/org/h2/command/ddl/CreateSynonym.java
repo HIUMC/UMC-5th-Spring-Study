@@ -1,5 +1,5 @@
 /*
- * Copyright 2004-2019 H2 Group. Multiple-Licensed under the MPL 2.0,
+ * Copyright 2004-2023 H2 Group. Multiple-Licensed under the MPL 2.0,
  * and the EPL 1.0 (https://h2database.com/html/license.html).
  * Initial Developer: H2 Group
  */
@@ -8,7 +8,7 @@ package org.h2.command.ddl;
 import org.h2.api.ErrorCode;
 import org.h2.command.CommandInterface;
 import org.h2.engine.Database;
-import org.h2.engine.Session;
+import org.h2.engine.SessionLocal;
 import org.h2.message.DbException;
 import org.h2.schema.Schema;
 import org.h2.table.TableSynonym;
@@ -17,14 +17,14 @@ import org.h2.table.TableSynonym;
  * This class represents the statement
  * CREATE SYNONYM
  */
-public class CreateSynonym extends SchemaCommand {
+public class CreateSynonym extends SchemaOwnerCommand {
 
     private final CreateSynonymData data = new CreateSynonymData();
     private boolean ifNotExists;
     private boolean orReplace;
     private String comment;
 
-    public CreateSynonym(Session session, Schema schema) {
+    public CreateSynonym(SessionLocal session, Schema schema) {
         super(session, schema);
     }
 
@@ -47,16 +47,12 @@ public class CreateSynonym extends SchemaCommand {
     public void setOrReplace(boolean orReplace) { this.orReplace = orReplace; }
 
     @Override
-    public int update() {
-        if (!transactional) {
-            session.commit(true);
-        }
-        session.getUser().checkAdmin();
-        Database db = session.getDatabase();
+    long update(Schema schema) {
+        Database db = getDatabase();
         data.session = session;
         db.lockMeta(session);
 
-        if (getSchema().findTableOrView(session, data.synonymName) != null) {
+        if (schema.findTableOrView(session, data.synonymName) != null) {
             throw DbException.get(ErrorCode.TABLE_OR_VIEW_ALREADY_EXISTS_1, data.synonymName);
         }
 

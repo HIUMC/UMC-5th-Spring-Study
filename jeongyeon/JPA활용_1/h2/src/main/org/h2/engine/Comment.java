@@ -1,5 +1,5 @@
 /*
- * Copyright 2004-2019 H2 Group. Multiple-Licensed under the MPL 2.0,
+ * Copyright 2004-2023 H2 Group. Multiple-Licensed under the MPL 2.0,
  * and the EPL 1.0 (https://h2database.com/html/license.html).
  * Initial Developer: H2 Group
  */
@@ -7,13 +7,12 @@ package org.h2.engine;
 
 import org.h2.message.DbException;
 import org.h2.message.Trace;
-import org.h2.table.Table;
 import org.h2.util.StringUtils;
 
 /**
  * Represents a database object comment.
  */
-public class Comment extends DbObjectBase {
+public final class Comment extends DbObject {
 
     private final int objectType;
     private final String quotedObjectName;
@@ -22,12 +21,7 @@ public class Comment extends DbObjectBase {
     public Comment(Database database, int id, DbObject obj) {
         super(database, id,  getKey(obj), Trace.DATABASE);
         this.objectType = obj.getType();
-        this.quotedObjectName = obj.getSQL(true);
-    }
-
-    @Override
-    public String getCreateSQLForCopy(Table table, String quotedName) {
-        throw DbException.throwInternalError(toString());
+        this.quotedObjectName = obj.getSQL(DEFAULT_SQL_FLAGS);
     }
 
     private static String getTypeName(int type) {
@@ -62,11 +56,6 @@ public class Comment extends DbObjectBase {
     }
 
     @Override
-    public String getDropSQL() {
-        return null;
-    }
-
-    @Override
     public String getCreateSQL() {
         StringBuilder buff = new StringBuilder("COMMENT ON ");
         buff.append(getTypeName(objectType)).append(' ').
@@ -85,13 +74,13 @@ public class Comment extends DbObjectBase {
     }
 
     @Override
-    public void removeChildrenAndResources(Session session) {
+    public void removeChildrenAndResources(SessionLocal session) {
         database.removeMeta(session, getId());
     }
 
     @Override
     public void checkRename() {
-        DbException.throwInternalError();
+        throw DbException.getInternalError();
     }
 
     /**
@@ -103,7 +92,7 @@ public class Comment extends DbObjectBase {
      */
     static String getKey(DbObject obj) {
         StringBuilder builder = new StringBuilder(getTypeName(obj.getType())).append(' ');
-        obj.getSQL(builder, true);
+        obj.getSQL(builder, DEFAULT_SQL_FLAGS);
         return builder.toString();
     }
 

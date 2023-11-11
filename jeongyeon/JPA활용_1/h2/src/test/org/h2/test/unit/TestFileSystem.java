@@ -1,5 +1,5 @@
 /*
- * Copyright 2004-2019 H2 Group. Multiple-Licensed under the MPL 2.0,
+ * Copyright 2004-2023 H2 Group. Multiple-Licensed under the MPL 2.0,
  * and the EPL 1.0 (https://h2database.com/html/license.html).
  * Initial Developer: H2 Group
  */
@@ -12,7 +12,6 @@ import java.io.OutputStream;
 import java.io.RandomAccessFile;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
-import java.nio.channels.FileChannel.MapMode;
 import java.nio.channels.FileLock;
 import java.nio.channels.NonWritableChannelException;
 import java.sql.Connection;
@@ -22,6 +21,7 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.List;
 import java.util.Random;
+import java.util.concurrent.atomic.AtomicIntegerArray;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 import org.h2.dev.fs.FilePathZip2;
@@ -29,11 +29,10 @@ import org.h2.message.DbException;
 import org.h2.mvstore.DataUtils;
 import org.h2.mvstore.cache.FilePathCache;
 import org.h2.store.fs.FilePath;
-import org.h2.store.fs.FilePathEncrypt;
-import org.h2.store.fs.FilePathRec;
 import org.h2.store.fs.FileUtils;
+import org.h2.store.fs.encrypt.FilePathEncrypt;
+import org.h2.store.fs.rec.FilePathRec;
 import org.h2.test.TestBase;
-import org.h2.test.utils.AssertThrows;
 import org.h2.test.utils.FilePathDebug;
 import org.h2.tools.Backup;
 import org.h2.tools.DeleteDbFiles;
@@ -53,7 +52,7 @@ public class TestFileSystem extends TestBase {
     public static void main(String... a) throws Exception {
         TestBase test = TestBase.createCaller().init();
         // test.config.traceTest = true;
-        test.test();
+        test.testFromMain();
     }
 
     @Override
@@ -63,7 +62,6 @@ public class TestFileSystem extends TestBase {
         testAbsoluteRelative();
         testDirectories(getBaseDir());
         testMoveTo(getBaseDir());
-        testUnsupportedFeatures(getBaseDir());
         FilePathZip2.register();
         FilePath.register(new FilePathCache());
         FilePathRec.register();
@@ -93,8 +91,7 @@ public class TestFileSystem extends TestBase {
         testFileSystem("rec:memFS:");
         testUserHome();
         try {
-            testFileSystem("nio:" + getBaseDir() + "/fs");
-            testFileSystem("cache:nio:" + getBaseDir() + "/fs");
+            testFileSystem("cache:" + getBaseDir() + "/fs");
             testFileSystem("nioMapped:" + getBaseDir() + "/fs");
             testFileSystem("encrypt:0007:" + getBaseDir() + "/fs");
             testFileSystem("cache:encrypt:0007:" + getBaseDir() + "/fs");
@@ -204,7 +201,9 @@ public class TestFileSystem extends TestBase {
 
     private void testAbsoluteRelative() {
         assertFalse(FileUtils.isAbsolute("test/abc"));
+        assertFalse(FileUtils.isAbsolute("./test/abc"));
         assertTrue(FileUtils.isAbsolute("~/test/abc"));
+        assertTrue(FileUtils.isAbsolute("/test/abc"));
     }
 
     private void testMemFsDir() throws IOException {
@@ -353,38 +352,14 @@ public class TestFileSystem extends TestBase {
     }
 
     private void testReadOnly(final String f) throws IOException {
-        new AssertThrows(IOException.class) {
-            @Override
-            public void test() throws IOException {
-                FileUtils.newOutputStream(f, false);
-        }};
-        new AssertThrows(DbException.class) {
-            @Override
-            public void test() {
-                FileUtils.move(f, f);
-        }};
-        new AssertThrows(DbException.class) {
-            @Override
-            public void test() {
-                FileUtils.move(f, f);
-        }};
-        new AssertThrows(IOException.class) {
-            @Override
-            public void test() throws IOException {
-                FileUtils.createTempFile(f, ".tmp", false);
-        }};
+        assertThrows(IOException.class, () -> FileUtils.newOutputStream(f, false));
+        assertThrows(DbException.class, () -> FileUtils.move(f, f));
+        assertThrows(DbException.class, () -> FileUtils.move(f, f));
+        assertThrows(IOException.class, () -> FileUtils.createTempFile(f, ".tmp", false));
         final FileChannel channel = FileUtils.open(f, "r");
-        new AssertThrows(IOException.class) {
-            @Override
-            public void test() throws IOException {
-                channel.write(ByteBuffer.allocate(1));
-        }};
-        new AssertThrows(IOException.class) {
-            @Override
-            public void test() throws IOException {
-                channel.truncate(0);
-        }};
-        assertTrue(null == channel.tryLock());
+        assertThrows(NonWritableChannelException.class, () -> channel.write(ByteBuffer.allocate(1)));
+        assertThrows(IOException.class, () -> channel.truncate(0));
+        assertNull(channel.tryLock());
         channel.force(false);
         channel.close();
     }
@@ -427,27 +402,19 @@ public class TestFileSystem extends TestBase {
         }
     }
 
-    private static void testDirectories(String fsBase) {
+    private void testDirectories(String fsBase) {
         final String fileName = fsBase + "/testFile";
         if (FileUtils.exists(fileName)) {
             FileUtils.delete(fileName);
         }
         if (FileUtils.createFile(fileName)) {
-            new AssertThrows(DbException.class) {
-                @Override
-                public void test() {
-                    FileUtils.createDirectory(fileName);
-            }};
-            new AssertThrows(DbException.class) {
-                @Override
-                public void test() {
-                    FileUtils.createDirectories(fileName + "/test");
-            }};
+            assertThrows(DbException.class, () -> FileUtils.createDirectory(fileName));
+            assertThrows(DbException.class, () -> FileUtils.createDirectories(fileName + "/test"));
             FileUtils.delete(fileName);
         }
     }
 
-    private static void testMoveTo(String fsBase) {
+    private void testMoveTo(String fsBase) {
         final String fileName = fsBase + "/testFile";
         final String fileName2 = fsBase + "/testFile2";
         if (FileUtils.exists(fileName)) {
@@ -456,60 +423,10 @@ public class TestFileSystem extends TestBase {
         if (FileUtils.createFile(fileName)) {
             FileUtils.move(fileName, fileName2);
             FileUtils.createFile(fileName);
-            new AssertThrows(DbException.class) {
-                @Override
-                public void test() {
-                    FileUtils.move(fileName2, fileName);
-            }};
+            assertThrows(DbException.class, () -> FileUtils.move(fileName2, fileName));
             FileUtils.delete(fileName);
             FileUtils.delete(fileName2);
-            new AssertThrows(DbException.class) {
-                @Override
-                public void test() {
-                    FileUtils.move(fileName, fileName2);
-            }};
-        }
-    }
-
-    private static void testUnsupportedFeatures(String fsBase) throws IOException {
-        final String fileName = fsBase + "/testFile";
-        if (FileUtils.exists(fileName)) {
-            FileUtils.delete(fileName);
-        }
-        if (FileUtils.createFile(fileName)) {
-            final FileChannel channel = FileUtils.open(fileName, "rw");
-            new AssertThrows(UnsupportedOperationException.class) {
-                @Override
-                public void test() throws IOException {
-                    channel.map(MapMode.PRIVATE, 0, channel.size());
-            }};
-            new AssertThrows(UnsupportedOperationException.class) {
-                @Override
-                public void test() throws IOException {
-                    channel.read(new ByteBuffer[]{ByteBuffer.allocate(10)}, 0, 0);
-            }};
-            new AssertThrows(UnsupportedOperationException.class) {
-                @Override
-                public void test() throws IOException {
-                    channel.write(new ByteBuffer[]{ByteBuffer.allocate(10)}, 0, 0);
-            }};
-            new AssertThrows(UnsupportedOperationException.class) {
-                @Override
-                public void test() throws IOException {
-                    channel.transferFrom(channel, 0, 0);
-            }};
-            new AssertThrows(UnsupportedOperationException.class) {
-                @Override
-                public void test() throws IOException {
-                    channel.transferTo(0, 0, channel);
-            }};
-            new AssertThrows(UnsupportedOperationException.class) {
-                @Override
-                public void test() throws IOException {
-                    channel.lock();
-            }};
-            channel.close();
-            FileUtils.delete(fileName);
+            assertThrows(DbException.class, () -> FileUtils.move(fileName, fileName2));
         }
     }
 
@@ -574,18 +491,8 @@ public class TestFileSystem extends TestBase {
         FileUtils.readFully(channel, ByteBuffer.wrap(test, 0, 10000));
         assertEquals(buffer, test);
         final FileChannel fc = channel;
-        new AssertThrows(IOException.class) {
-            @Override
-            public void test() throws Exception {
-                fc.write(ByteBuffer.wrap(test, 0, 10));
-            }
-        };
-        new AssertThrows(NonWritableChannelException.class) {
-            @Override
-            public void test() throws Exception {
-                fc.truncate(10);
-            }
-        };
+        assertThrows(NonWritableChannelException.class, () -> fc.write(ByteBuffer.wrap(test, 0, 10)));
+        assertThrows(NonWritableChannelException.class, () -> fc.truncate(10));
         channel.close();
         long lastMod = FileUtils.lastModified(fsBase + "/test");
         if (lastMod < time - 1999) {
@@ -678,7 +585,6 @@ public class TestFileSystem extends TestBase {
         RandomAccessFile ra = new RandomAccessFile(file, "rw");
         FileUtils.delete(s);
         FileChannel f = FileUtils.open(s, "rw");
-        assertEquals(s, f.toString());
         assertEquals(-1, f.read(ByteBuffer.wrap(new byte[1])));
         f.force(true);
         Random random = new Random(seed);
@@ -814,6 +720,8 @@ public class TestFileSystem extends TestBase {
         final FileChannel f = FileUtils.open(s, "rw");
         final int size = getSize(10, 50);
         f.write(ByteBuffer.allocate(size * 64 *  1024));
+        AtomicIntegerArray locks = new AtomicIntegerArray(size);
+        AtomicIntegerArray expected = new AtomicIntegerArray(size);
         Random random = new Random(1);
         System.gc();
         Task task = new Task() {
@@ -823,18 +731,26 @@ public class TestFileSystem extends TestBase {
                 while (!stop) {
                     for (int pos = 0; pos < size; pos++) {
                         byteBuff.clear();
-                        f.read(byteBuff, pos * 64 * 1024);
+                        int e;
+                        while (!locks.compareAndSet(pos, 0, 1)) {
+                        }
+                        try {
+                            e = expected.get(pos);
+                            f.read(byteBuff, pos * 64 * 1024);
+                        } finally {
+                            locks.set(pos, 0);
+                        }
                         byteBuff.position(0);
                         int x = byteBuff.getInt();
                         int y = byteBuff.getInt();
-                        assertEquals(x, y);
+                        assertEquals(e, x);
+                        assertEquals(e, y);
                         Thread.yield();
                     }
                 }
             }
         };
         task.execute();
-        int[] data = new int[size];
         try {
             ByteBuffer byteBuff = ByteBuffer.allocate(16);
             int operations = 10000;
@@ -844,17 +760,31 @@ public class TestFileSystem extends TestBase {
                 byteBuff.putInt(i);
                 byteBuff.flip();
                 int pos = random.nextInt(size);
-                f.write(byteBuff, pos * 64 * 1024);
-                data[pos] = i;
+                while (!locks.compareAndSet(pos, 0, 1)) {
+                }
+                try {
+                    f.write(byteBuff, pos * 64 * 1024);
+                    expected.set(pos, i);
+                } finally {
+                    locks.set(pos, 0);
+                }
                 pos = random.nextInt(size);
                 byteBuff.clear();
-                f.read(byteBuff, pos * 64 * 1024);
+                int e;
+                while (!locks.compareAndSet(pos, 0, 1)) {
+                }
+                try {
+                    e = expected.get(pos);
+                    f.read(byteBuff, pos * 64 * 1024);
+                } finally {
+                    locks.set(pos, 0);
+                }
                 byteBuff.limit(16);
                 byteBuff.position(0);
                 int x = byteBuff.getInt();
                 int y = byteBuff.getInt();
-                assertEquals(x, y);
-                assertEquals(data[pos], x);
+                assertEquals(e, x);
+                assertEquals(e, y);
             }
         } catch (Throwable e) {
             e.printStackTrace();

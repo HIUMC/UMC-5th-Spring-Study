@@ -1,5 +1,5 @@
 /*
- * Copyright 2004-2019 H2 Group. Multiple-Licensed under the MPL 2.0,
+ * Copyright 2004-2023 H2 Group. Multiple-Licensed under the MPL 2.0,
  * and the EPL 1.0 (https://h2database.com/html/license.html).
  * Initial Developer: H2 Group
  */
@@ -12,17 +12,25 @@ import java.util.HashMap;
  */
 public class RuleFixed implements Rule {
 
-    public static final int YMD = 0, HMS = 1, NANOS = 2;
-    public static final int ANY_EXCEPT_SINGLE_QUOTE = 3;
-    public static final int ANY_EXCEPT_DOUBLE_QUOTE = 4;
-    public static final int ANY_UNTIL_EOL = 5;
-    public static final int ANY_UNTIL_END = 6;
-    public static final int ANY_WORD = 7;
-    public static final int ANY_EXCEPT_2_DOLLAR = 8;
-    public static final int HEX_START = 10, CONCAT = 11;
-    public static final int AZ_UNDERSCORE = 12, AF = 13, DIGIT = 14;
-    public static final int OPEN_BRACKET = 15, CLOSE_BRACKET = 16;
-    public static final int JSON_TEXT = 17;
+    public static final int YMD = 0;
+    public static final int HMS = YMD + 1;
+    public static final int NANOS = HMS + 1;
+    public static final int ANY_EXCEPT_SINGLE_QUOTE = NANOS + 1;
+    public static final int ANY_EXCEPT_DOUBLE_QUOTE = ANY_EXCEPT_SINGLE_QUOTE + 1;
+    public static final int ANY_UNTIL_EOL = ANY_EXCEPT_DOUBLE_QUOTE + 1;
+    public static final int ANY_UNTIL_END = ANY_UNTIL_EOL + 1;
+    public static final int ANY_WORD = ANY_UNTIL_END + 1;
+    public static final int ANY_EXCEPT_2_DOLLAR = ANY_WORD + 1;
+    public static final int HEX_START = ANY_EXCEPT_2_DOLLAR + 1;
+    public static final int OCTAL_START = HEX_START + 1;
+    public static final int BINARY_START = OCTAL_START + 1;
+    public static final int CONCAT = BINARY_START + 1;
+    public static final int AZ_UNDERSCORE = CONCAT + 1;
+    public static final int AF = AZ_UNDERSCORE + 1;
+    public static final int DIGIT = AF + 1;
+    public static final int OPEN_BRACKET = DIGIT + 1;
+    public static final int CLOSE_BRACKET = OPEN_BRACKET + 1;
+    public static final int JSON_TEXT = CLOSE_BRACKET + 1;
 
     private final int type;
 
@@ -133,6 +141,24 @@ public class RuleFixed implements Rule {
                 sentence.add("0x", "0x", Sentence.KEYWORD);
             }
             break;
+        case OCTAL_START:
+            if (s.startsWith("0O") || s.startsWith("0o")) {
+                s = s.substring(2);
+            } else if ("0".equals(s)) {
+                sentence.add("0o", "o", Sentence.KEYWORD);
+            } else if (s.length() == 0) {
+                sentence.add("0o", "0o", Sentence.KEYWORD);
+            }
+            break;
+        case BINARY_START:
+            if (s.startsWith("0B") || s.startsWith("0b")) {
+                s = s.substring(2);
+            } else if ("0".equals(s)) {
+                sentence.add("0b", "b", Sentence.KEYWORD);
+            } else if (s.length() == 0) {
+                sentence.add("0b", "0b", Sentence.KEYWORD);
+            }
+            break;
         case CONCAT:
             if (s.equals("|")) {
                 sentence.add("||", "|", Sentence.KEYWORD);
@@ -208,6 +234,11 @@ public class RuleFixed implements Rule {
             return true;
         }
         return false;
+    }
+
+    @Override
+    public String toString() {
+        return "#" + type;
     }
 
 }

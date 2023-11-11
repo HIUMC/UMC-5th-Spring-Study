@@ -1,24 +1,19 @@
 /*
- * Copyright 2004-2019 H2 Group. Multiple-Licensed under the MPL 2.0,
+ * Copyright 2004-2023 H2 Group. Multiple-Licensed under the MPL 2.0,
  * and the EPL 1.0 (https://h2database.com/html/license.html).
  * Initial Developer: H2 Group
  */
 package org.h2.value;
 
-import java.sql.PreparedStatement;
-import java.sql.SQLException;
-
 import org.h2.api.ErrorCode;
 import org.h2.engine.CastDataProvider;
 import org.h2.message.DbException;
 import org.h2.util.DateTimeUtils;
-import org.h2.util.JSR310;
-import org.h2.util.JSR310Utils;
 
 /**
  * Implementation of the TIME WITH TIME ZONE data type.
  */
-public class ValueTimeTimeZone extends Value {
+public final class ValueTimeTimeZone extends Value {
 
     /**
      * The default precision and display size of the textual representation of a
@@ -63,9 +58,8 @@ public class ValueTimeTimeZone extends Value {
      */
     public static ValueTimeTimeZone fromNanos(long nanos, int timeZoneOffsetSeconds) {
         if (nanos < 0L || nanos >= DateTimeUtils.NANOS_PER_DAY) {
-            StringBuilder builder = new StringBuilder();
-            DateTimeUtils.appendTime(builder, nanos);
-            throw DbException.get(ErrorCode.INVALID_DATETIME_CONSTANT_2, "TIME WITH TIME ZONE", builder.toString());
+            throw DbException.get(ErrorCode.INVALID_DATETIME_CONSTANT_2, "TIME WITH TIME ZONE",
+                    DateTimeUtils.appendTime(new StringBuilder(), nanos).toString());
         }
         /*
          * Some current and historic time zones have offsets larger than 12
@@ -83,11 +77,14 @@ public class ValueTimeTimeZone extends Value {
      *
      * @param s
      *            the string to parse
+     * @param provider
+     *            the cast information provider, may be {@code null} for
+     *            literals with time zone
      * @return the time
      */
-    public static ValueTimeTimeZone parse(String s) {
+    public static ValueTimeTimeZone parse(String s, CastDataProvider provider) {
         try {
-            return DateTimeUtils.parseTimeWithTimeZone(s, null);
+            return (ValueTimeTimeZone) DateTimeUtils.parseTime(s, provider, true);
         } catch (Exception e) {
             throw DbException.get(ErrorCode.INVALID_DATETIME_CONSTANT_2, e, "TIME WITH TIME ZONE", s);
         }
@@ -126,40 +123,16 @@ public class ValueTimeTimeZone extends Value {
 
     @Override
     public String getString() {
-        StringBuilder builder = new StringBuilder(MAXIMUM_PRECISION);
-        DateTimeUtils.appendTime(builder, nanos);
-        DateTimeUtils.appendTimeZone(builder, timeZoneOffsetSeconds);
-        return builder.toString();
+        return toString(new StringBuilder(MAXIMUM_PRECISION)).toString();
     }
 
     @Override
-    public StringBuilder getSQL(StringBuilder builder) {
-        builder.append("TIME WITH TIME ZONE '");
-        DateTimeUtils.appendTime(builder, nanos);
-        DateTimeUtils.appendTimeZone(builder, timeZoneOffsetSeconds);
-        return builder.append('\'');
+    public StringBuilder getSQL(StringBuilder builder, int sqlFlags) {
+        return toString(builder.append("TIME WITH TIME ZONE '")).append('\'');
     }
 
-    @Override
-    public boolean checkPrecision(long precision) {
-        // TIME WITH TIME ZONE data type does not have precision parameter
-        return true;
-    }
-
-    @Override
-    public Value convertScale(boolean onlyToSmallerScale, int targetScale) {
-        if (targetScale >= ValueTime.MAXIMUM_SCALE) {
-            return this;
-        }
-        if (targetScale < 0) {
-            throw DbException.getInvalidValueException("scale", targetScale);
-        }
-        long n = nanos;
-        long n2 = DateTimeUtils.convertScale(n, targetScale, DateTimeUtils.NANOS_PER_DAY);
-        if (n2 == n) {
-            return this;
-        }
-        return fromNanos(n2, timeZoneOffsetSeconds);
+    private StringBuilder toString(StringBuilder builder) {
+        return DateTimeUtils.appendTimeZone(DateTimeUtils.appendTime(builder, nanos), timeZoneOffsetSeconds);
     }
 
     @Override
@@ -183,29 +156,6 @@ public class ValueTimeTimeZone extends Value {
     @Override
     public int hashCode() {
         return (int) (nanos ^ (nanos >>> 32) ^ timeZoneOffsetSeconds);
-    }
-
-    @Override
-    public Object getObject() {
-        if (JSR310.PRESENT) {
-            return JSR310Utils.valueToOffsetTime(this, null);
-        }
-        return getString();
-    }
-
-    @Override
-    public void set(PreparedStatement prep, int parameterIndex) throws SQLException {
-        if (JSR310.PRESENT) {
-            try {
-                prep.setObject(parameterIndex, JSR310Utils.valueToOffsetTime(this, null),
-                        // TODO use Types.TIME_WITH_TIMEZONE on Java 8
-                        2013);
-                return;
-            } catch (SQLException ignore) {
-                // Nothing to do
-            }
-        }
-        prep.setString(parameterIndex, getString());
     }
 
 }

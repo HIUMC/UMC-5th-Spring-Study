@@ -1,5 +1,5 @@
 /*
- * Copyright 2004-2019 H2 Group. Multiple-Licensed under the MPL 2.0,
+ * Copyright 2004-2023 H2 Group. Multiple-Licensed under the MPL 2.0,
  * and the EPL 1.0 (https://h2database.com/html/license.html).
  * Initial Developer: H2 Group
  */
@@ -19,13 +19,6 @@ import org.h2.tools.DeleteDbFiles;
  * The base class for tests that use connections to database.
  */
 public abstract class TestDb extends TestBase {
-
-    /**
-     * Start the TCP server if enabled in the configuration.
-     */
-    protected void startServerIfRequired() throws SQLException {
-        config.beforeTest();
-    }
 
     /**
      * Open a database connection in admin mode. The default user name and
@@ -63,11 +56,7 @@ public abstract class TestDb extends TestBase {
     protected String getURL(String name, boolean admin) {
         String url;
         if (name.startsWith("jdbc:")) {
-            if (config.mvStore) {
-                name = addOption(name, "MV_STORE", "true");
-            } else {
-                name = addOption(name, "MV_STORE", "false");
-            }
+            name = addOption(name, "MV_STORE", "true");
             return name;
         }
         if (admin) {
@@ -95,12 +84,8 @@ public abstract class TestDb extends TestBase {
         } else {
             url = name;
         }
-        if (config.mvStore) {
-            url = addOption(url, "MV_STORE", "true");
-            url = addOption(url, "MAX_COMPACT_TIME", "0"); // to speed up tests
-        } else {
-            url = addOption(url, "MV_STORE", "false");
-        }
+        url = addOption(url, "MV_STORE", "true");
+        url = addOption(url, "MAX_COMPACT_TIME", "0"); // to speed up tests
         if (!config.memory) {
             if (config.smallLog && admin) {
                 url = addOption(url, "MAX_LOG_SIZE", "1");
@@ -113,7 +98,6 @@ public abstract class TestDb extends TestBase {
             url = addOption(url, "TRACE_LEVEL_FILE", "" + config.traceLevelFile);
             url = addOption(url, "TRACE_MAX_FILE_SIZE", "8");
         }
-        url = addOption(url, "LOG", "1");
         if (config.throttleDefault > 0) {
             url = addOption(url, "THROTTLE", "" + config.throttleDefault);
         } else if (config.throttle > 0) {
@@ -139,9 +123,6 @@ public abstract class TestDb extends TestBase {
         }
         if (config.cipher != null) {
             url = addOption(url, "CIPHER", config.cipher);
-        }
-        if (config.defrag) {
-            url = addOption(url, "DEFRAG_ALWAYS", "TRUE");
         }
         if (config.collation != null) {
             url = addOption(url, "COLLATION", config.collation);

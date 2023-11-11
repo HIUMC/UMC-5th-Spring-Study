@@ -1,5 +1,5 @@
 /*
- * Copyright 2004-2019 H2 Group. Multiple-Licensed under the MPL 2.0,
+ * Copyright 2004-2023 H2 Group. Multiple-Licensed under the MPL 2.0,
  * and the EPL 1.0 (https://h2database.com/html/license.html).
  * Initial Developer: H2 Group
  */
@@ -11,7 +11,7 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import org.h2.api.ErrorCode;
-import org.h2.engine.Session;
+import org.h2.engine.SessionLocal;
 import org.h2.jdbc.JdbcConnection;
 import org.h2.test.TestBase;
 import org.h2.test.TestDb;
@@ -29,7 +29,7 @@ public class TestView extends TestDb {
      * @param a ignored
      */
     public static void main(String... a) throws Exception {
-        TestBase.createCaller().init().test();
+        TestBase.createCaller().init().testFromMain();
     }
 
     @Override
@@ -50,7 +50,6 @@ public class TestView extends TestDb {
         testManyViews();
         testReferenceView();
         testViewAlterAndCommandCache();
-        testViewConstraintFromColumnExpression();
         deleteDb("view");
     }
 
@@ -78,7 +77,7 @@ public class TestView extends TestDb {
                 "name varchar(25) unique, age int unique)");
 
         // check that initial cache size is empty
-        Session s = (Session) ((JdbcConnection) conn).getSession();
+        SessionLocal s = (SessionLocal) ((JdbcConnection) conn).getSession();
         s.clearViewIndexCache();
         assertTrue(s.getViewIndexCache(true).isEmpty());
         assertTrue(s.getViewIndexCache(false).isEmpty());
@@ -170,7 +169,7 @@ public class TestView extends TestDb {
 
     private void testChangeSchemaSearchPath() throws SQLException {
         deleteDb("view");
-        Connection conn = getConnection("view;FUNCTIONS_IN_SCHEMA=TRUE");
+        Connection conn = getConnection("view");
         Statement stat = conn.createStatement();
         stat.execute("CREATE ALIAS X AS $$ int x() { return 1; } $$;");
         stat.execute("CREATE SCHEMA S");
@@ -213,7 +212,7 @@ public class TestView extends TestDb {
         x = 8;
         stat.execute("CREATE ALIAS GET_X " +
                 (deterministic ? "DETERMINISTIC" : "") +
-                " FOR \"" + getClass().getName() + ".getX\"");
+                " FOR '" + getClass().getName() + ".getX'");
         stat.execute("CREATE VIEW V AS SELECT * FROM (SELECT GET_X())");
         ResultSet rs;
         rs = stat.executeQuery("SELECT * FROM V");
@@ -348,47 +347,4 @@ public class TestView extends TestDb {
         deleteDb("view");
     }
 
-    /**
-     * Make sure that the table constraint is still available when create a view
-     * of other table.
-     */
-    private void testViewConstraintFromColumnExpression() throws SQLException {
-        deleteDb("view");
-        Connection conn = getConnection("view");
-        Statement stat = conn.createStatement();
-        stat.execute("create table t0(id1 int primary key CHECK ((ID1 % 2) = 0))");
-        stat.execute("create table t1(id2 int primary key CHECK ((ID2 % 1) = 0))");
-        stat.execute("insert into t0 values(0)");
-        stat.execute("insert into t1 values(1)");
-        stat.execute("create view v1 as select * from t0,t1");
-        // Check with ColumnExpression
-        ResultSet rs = stat.executeQuery(
-                "select * from INFORMATION_SCHEMA.COLUMNS where TABLE_NAME = 'V1'");
-        assertTrue(rs.next());
-        assertEquals("ID1", rs.getString("COLUMN_NAME"));
-        assertEquals("((\"ID1\" % 2) = 0)", rs.getString("CHECK_CONSTRAINT"));
-        assertTrue(rs.next());
-        assertEquals("ID2", rs.getString("COLUMN_NAME"));
-        assertEquals("((\"ID2\" % 1) = 0)", rs.getString("CHECK_CONSTRAINT"));
-        // Check with AliasExpression
-        stat.execute("create view v2 as select ID1 key1,ID2 key2 from t0,t1");
-        rs = stat.executeQuery("select * from INFORMATION_SCHEMA.COLUMNS where TABLE_NAME = 'V2'");
-        assertTrue(rs.next());
-        assertEquals("KEY1", rs.getString("COLUMN_NAME"));
-        assertEquals("((\"KEY1\" % 2) = 0)", rs.getString("CHECK_CONSTRAINT"));
-        assertTrue(rs.next());
-        assertEquals("KEY2", rs.getString("COLUMN_NAME"));
-        assertEquals("((\"KEY2\" % 1) = 0)", rs.getString("CHECK_CONSTRAINT"));
-        // Check hide of constraint if column is an Operation
-        stat.execute("create view v3 as select ID1 + 1 ID1, ID2 + 1 ID2 from t0,t1");
-        rs = stat.executeQuery("select * from INFORMATION_SCHEMA.COLUMNS where TABLE_NAME = 'V3'");
-        assertTrue(rs.next());
-        assertEquals("ID1", rs.getString("COLUMN_NAME"));
-        assertEquals("", rs.getString("CHECK_CONSTRAINT"));
-        assertTrue(rs.next());
-        assertEquals("ID2", rs.getString("COLUMN_NAME"));
-        assertEquals("", rs.getString("CHECK_CONSTRAINT"));
-        conn.close();
-        deleteDb("view");
-    }
 }

@@ -1,25 +1,67 @@
 /*
- * Copyright 2004-2019 H2 Group. Multiple-Licensed under the MPL 2.0,
+ * Copyright 2004-2023 H2 Group. Multiple-Licensed under the MPL 2.0,
  * and the EPL 1.0 (https://h2database.com/html/license.html).
  * Initial Developer: H2 Group
  */
 package org.h2.store.fs;
 
+import java.io.BufferedReader;
 import java.io.EOFException;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
+import java.nio.charset.Charset;
+import java.nio.file.OpenOption;
+import java.nio.file.StandardOpenOption;
+import java.nio.file.attribute.FileAttribute;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.EnumSet;
 import java.util.List;
+import java.util.Set;
+
+import org.h2.engine.Constants;
 
 /**
  * This utility class contains utility functions that use the file system
  * abstraction.
  */
 public class FileUtils {
+
+    /**
+     * {@link StandardOpenOption#READ}.
+     */
+    public static final Set<? extends OpenOption> R = Collections.singleton(StandardOpenOption.READ);
+
+    /**
+     * {@link StandardOpenOption#READ}, {@link StandardOpenOption#WRITE}, and
+     * {@link StandardOpenOption#CREATE}.
+     */
+    public static final Set<? extends OpenOption> RW = Collections
+            .unmodifiableSet(EnumSet.of(StandardOpenOption.READ, StandardOpenOption.WRITE, StandardOpenOption.CREATE));
+
+    /**
+     * {@link StandardOpenOption#READ}, {@link StandardOpenOption#WRITE},
+     * {@link StandardOpenOption#CREATE}, and {@link StandardOpenOption#SYNC}.
+     */
+    public static final Set<? extends OpenOption> RWS = Collections.unmodifiableSet(EnumSet.of(StandardOpenOption.READ,
+            StandardOpenOption.WRITE, StandardOpenOption.CREATE, StandardOpenOption.SYNC));
+
+    /**
+     * {@link StandardOpenOption#READ}, {@link StandardOpenOption#WRITE},
+     * {@link StandardOpenOption#CREATE}, and {@link StandardOpenOption#DSYNC}.
+     */
+    public static final Set<? extends OpenOption> RWD = Collections.unmodifiableSet(EnumSet.of(StandardOpenOption.READ,
+            StandardOpenOption.WRITE, StandardOpenOption.CREATE, StandardOpenOption.DSYNC));
+
+    /**
+     * No file attributes.
+     */
+    public static final FileAttribute<?>[] NO_ATTRIBUTES = new FileAttribute[0];
 
     /**
      * Checks if a file exists.
@@ -102,7 +144,7 @@ public class FileUtils {
         return FilePath.get(fileName).isAbsolute()
                 // Allows Windows to recognize "/path" as absolute.
                 // Makes the same configuration work on all platforms.
-                || fileName.startsWith(File.pathSeparator)
+                || fileName.startsWith(File.separator)
                 // Just in case of non-normalized path on Windows
                 || fileName.startsWith("/");
     }
@@ -198,6 +240,16 @@ public class FileUtils {
     }
 
     /**
+     * Tests whether a file is a regular file.
+     *
+     * @param fileName the file or directory name
+     * @return true if it is a regular file
+     */
+    public static boolean isRegularFile(String fileName) {
+        return FilePath.get(fileName).isRegularFile();
+    }
+
+    /**
      * Open a random access file object.
      * This method is similar to Java 7
      * <code>java.nio.channels.FileChannel.open</code>.
@@ -205,6 +257,7 @@ public class FileUtils {
      * @param fileName the file name
      * @param mode the access mode. Supported are r, rw, rws, rwd
      * @return the file object
+     * @throws IOException on failure
      */
     public static FileChannel open(String fileName, String mode)
             throws IOException {
@@ -214,28 +267,42 @@ public class FileUtils {
     /**
      * Create an input stream to read from the file.
      * This method is similar to Java 7
-     * <code>java.nio.file.Path.newInputStream</code>.
+     * <code>java.nio.file.Files.newInputStream()</code>.
      *
      * @param fileName the file name
      * @return the input stream
+     * @throws IOException on failure
      */
-    public static InputStream newInputStream(String fileName)
-            throws IOException {
+    public static InputStream newInputStream(String fileName) throws IOException {
         return FilePath.get(fileName).newInputStream();
     }
 
     /**
+     * Create a buffered reader to read from the file.
+     * This method is similar to
+     * <code>java.nio.file.Files.newBufferedReader()</code>.
+     *
+     * @param fileName the file name
+     * @param charset the charset
+     * @return the buffered reader
+     * @throws IOException on failure
+     */
+    public static BufferedReader newBufferedReader(String fileName, Charset charset) throws IOException {
+        return new BufferedReader(new InputStreamReader(newInputStream(fileName), charset), Constants.IO_BUFFER_SIZE);
+    }
+
+    /**
      * Create an output stream to write into the file.
-     * This method is similar to Java 7
-     * <code>java.nio.file.Path.newOutputStream</code>.
+     * This method is similar to
+     * <code>java.nio.file.Files.newOutputStream()</code>.
      *
      * @param fileName the file name
      * @param append if true, the file will grow, if false, the file will be
      *            truncated first
      * @return the output stream
+     * @throws IOException on failure
      */
-    public static OutputStream newOutputStream(String fileName, boolean append)
-            throws IOException {
+    public static OutputStream newOutputStream(String fileName, boolean append) throws IOException {
         return FilePath.get(fileName).newOutputStream(append);
     }
 
@@ -340,6 +407,7 @@ public class FileUtils {
      * @param suffix the suffix
      * @param inTempDir if the file should be stored in the temporary directory
      * @return the name of the created file
+     * @throws IOException on failure
      */
     public static String createTempFile(String prefix, String suffix,
             boolean inTempDir) throws IOException {
@@ -352,6 +420,7 @@ public class FileUtils {
      *
      * @param channel the file channel
      * @param dst the byte buffer
+     * @throws IOException on failure
      */
     public static void readFully(FileChannel channel, ByteBuffer dst)
             throws IOException {
@@ -368,12 +437,40 @@ public class FileUtils {
      *
      * @param channel the file channel
      * @param src the byte buffer
+     * @throws IOException on failure
      */
     public static void writeFully(FileChannel channel, ByteBuffer src)
             throws IOException {
         do {
             channel.write(src);
         } while (src.remaining() > 0);
+    }
+
+    /**
+     * Convert the string representation to a set.
+     *
+     * @param mode the mode as a string
+     * @return the set
+     */
+    public static Set<? extends OpenOption> modeToOptions(String mode) {
+        Set<? extends OpenOption> options;
+        switch (mode) {
+        case "r":
+            options = R;
+            break;
+        case "rw":
+            options = RW;
+            break;
+        case "rws":
+            options = RWS;
+            break;
+        case "rwd":
+            options = RWD;
+            break;
+        default:
+            throw new IllegalArgumentException(mode);
+        }
+        return options;
     }
 
 }

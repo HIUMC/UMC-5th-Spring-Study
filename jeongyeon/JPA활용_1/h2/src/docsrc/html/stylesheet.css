@@ -1,5 +1,5 @@
 /*
- * Copyright 2004-2019 H2 Group. Multiple-Licensed under the MPL 2.0,
+ * Copyright 2004-2023 H2 Group. Multiple-Licensed under the MPL 2.0,
  * and the EPL 1.0 (https://h2database.com/html/license.html).
  * Initial Developer: H2 Group
  */
@@ -281,6 +281,23 @@ td.index {
     margin: 0px;
     border-collapse: collapse;
     vertical-align: top;
+}
+
+div.ruleCompat code {
+    border-color: coral;
+    background-color: mistyrose;
+}
+
+div.ruleH2 code {
+    border-color: lightseagreen;
+}
+
+span.ruleCompat {
+    color: darkred;
+}
+
+span.ruleH2 {
+    color: green;
 }
 
 .c {

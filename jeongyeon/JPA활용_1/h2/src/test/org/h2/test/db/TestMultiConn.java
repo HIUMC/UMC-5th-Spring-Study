@@ -1,5 +1,5 @@
 /*
- * Copyright 2004-2019 H2 Group. Multiple-Licensed under the MPL 2.0,
+ * Copyright 2004-2023 H2 Group. Multiple-Licensed under the MPL 2.0,
  * and the EPL 1.0 (https://h2database.com/html/license.html).
  * Initial Developer: H2 Group
  */
@@ -30,7 +30,7 @@ public class TestMultiConn extends TestDb {
      * @param a ignored
      */
     public static void main(String... a) throws Exception {
-        TestBase.createCaller().init().test();
+        TestBase.createCaller().init().testFromMain();
     }
 
     @Override
@@ -46,7 +46,7 @@ public class TestMultiConn extends TestDb {
         Connection conn1 = getConnection("multiConn");
         Connection conn2 = getConnection("multiConn");
         final Statement stat1 = conn1.createStatement();
-        stat1.execute("CREATE ALIAS SLEEP FOR \"java.lang.Thread.sleep(long)\"");
+        stat1.execute("CREATE ALIAS SLEEP FOR 'java.lang.Thread.sleep(long)'");
         final Statement stat2 = conn2.createStatement();
         stat1.execute("SET THROTTLE 100");
         Task t = new Task() {
@@ -75,15 +75,15 @@ public class TestMultiConn extends TestDb {
 
     private void testThreeThreads() throws Exception {
         deleteDb("multiConn");
-        final Connection conn1 = getConnection("multiConn");
-        final Connection conn2 = getConnection("multiConn");
-        final Connection conn3 = getConnection("multiConn");
+        Connection conn1 = getConnection("multiConn");
+        Connection conn2 = getConnection("multiConn");
+        Connection conn3 = getConnection("multiConn");
         conn1.setAutoCommit(false);
         conn2.setAutoCommit(false);
         conn3.setAutoCommit(false);
-        final Statement s1 = conn1.createStatement();
-        final Statement s2 = conn2.createStatement();
-        final Statement s3 = conn3.createStatement();
+        Statement s1 = conn1.createStatement();
+        Statement s2 = conn2.createStatement();
+        Statement s3 = conn3.createStatement();
         s1.execute("CREATE TABLE TEST1(ID INT)");
         s2.execute("CREATE TABLE TEST2(ID INT)");
         s3.execute("CREATE TABLE TEST3(ID INT)");
@@ -93,28 +93,22 @@ public class TestMultiConn extends TestDb {
         s1.execute("SET LOCK_TIMEOUT 1000");
         s2.execute("SET LOCK_TIMEOUT 1000");
         s3.execute("SET LOCK_TIMEOUT 1000");
-        Thread t1 = new Thread(new Runnable() {
-            @Override
-            public void run() {
-                try {
-                    s3.execute("INSERT INTO TEST2 VALUES(4)");
-                    conn3.commit();
-                } catch (SQLException e) {
-                    TestBase.logError("insert", e);
-                }
+        Thread t1 = new Thread(() -> {
+            try {
+                s3.execute("INSERT INTO TEST2 VALUES(4)");
+                conn3.commit();
+            } catch (SQLException e) {
+                TestBase.logError("insert", e);
             }
         });
         t1.start();
         Thread.sleep(20);
-        Thread t2 = new Thread(new Runnable() {
-            @Override
-            public void run() {
-                try {
-                    s2.execute("INSERT INTO TEST1 VALUES(5)");
-                    conn2.commit();
-                } catch (SQLException e) {
-                    TestBase.logError("insert", e);
-                }
+        Thread t2 = new Thread(() -> {
+            try {
+                s2.execute("INSERT INTO TEST1 VALUES(5)");
+                conn2.commit();
+            } catch (SQLException e) {
+                TestBase.logError("insert", e);
             }
         });
         t2.start();
@@ -146,16 +140,13 @@ public class TestMultiConn extends TestDb {
         conn.createStatement().execute("SHUTDOWN");
         conn.close();
         final String listener = MyDatabaseEventListener.class.getName();
-        Runnable r = new Runnable() {
-            @Override
-            public void run() {
-                try {
-                    Connection c1 = getConnection("multiConn;DATABASE_EVENT_LISTENER='" + listener
-                            + "';file_lock=socket");
-                    c1.close();
-                } catch (Exception e) {
-                    TestBase.logError("connect", e);
-                }
+        Runnable r = () -> {
+            try {
+                Connection c1 = getConnection("multiConn;DATABASE_EVENT_LISTENER='" + listener
+                        + "';file_lock=socket");
+                c1.close();
+            } catch (Exception e) {
+                TestBase.logError("connect", e);
             }
         };
         Thread thread = new Thread(r);
@@ -208,16 +199,10 @@ public class TestMultiConn extends TestDb {
     /**
      * A database event listener used in this test.
      */
-    public static final class MyDatabaseEventListener implements
-            DatabaseEventListener {
+    public static final class MyDatabaseEventListener implements DatabaseEventListener {
 
         @Override
-        public void exceptionThrown(SQLException e, String sql) {
-            // do nothing
-        }
-
-        @Override
-        public void setProgress(int state, String name, int x, int max) {
+        public void setProgress(int state, String name, long x, long max) {
             if (wait > 0) {
                 try {
                     Thread.sleep(wait);
@@ -227,20 +212,6 @@ public class TestMultiConn extends TestDb {
             }
         }
 
-        @Override
-        public void closingDatabase() {
-            // do nothing
-        }
-
-        @Override
-        public void init(String url) {
-            // do nothing
-        }
-
-        @Override
-        public void opened() {
-            // do nothing
-        }
     }
 
 }

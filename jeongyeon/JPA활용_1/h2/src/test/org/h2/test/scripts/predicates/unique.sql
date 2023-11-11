@@ -1,4 +1,4 @@
--- Copyright 2004-2019 H2 Group. Multiple-Licensed under the MPL 2.0,
+-- Copyright 2004-2023 H2 Group. Multiple-Licensed under the MPL 2.0,
 -- and the EPL 1.0 (https://h2database.com/html/license.html).
 -- Initial Developer: H2 Group
 --
@@ -34,21 +34,50 @@ EXPLAIN SELECT UNIQUE(SELECT DISTINCT A, B FROM TEST);
 SELECT UNIQUE(SELECT DISTINCT A, B FROM TEST);
 >> TRUE
 
+SELECT UNIQUE NULLS DISTINCT(SELECT A, B FROM TEST);
+>> FALSE
+
+SELECT UNIQUE NULLS DISTINCT(SELECT A, B FROM TEST WHERE ID <> 6);
+>> TRUE
+
+SELECT UNIQUE NULLS ALL DISTINCT(SELECT A, B FROM TEST);
+>> FALSE
+
+SELECT UNIQUE NULLS ALL DISTINCT(SELECT A, B FROM TEST WHERE ID <> 6);
+>> FALSE
+
+SELECT UNIQUE NULLS ALL DISTINCT(SELECT A, B FROM TEST WHERE ID NOT IN(4, 6));
+>> TRUE
+
+SELECT UNIQUE NULLS NOT DISTINCT(SELECT A, B FROM TEST);
+>> FALSE
+
+SELECT UNIQUE NULLS NOT DISTINCT(SELECT A, B FROM TEST WHERE ID <> 6);
+>> FALSE
+
+SELECT UNIQUE NULLS NOT DISTINCT(SELECT A, B FROM TEST WHERE ID NOT IN(4, 6));
+>> FALSE
+
+SELECT UNIQUE NULLS NOT DISTINCT(SELECT A, B FROM TEST WHERE ID NOT IN(2, 4, 6));
+>> TRUE
+
 SELECT G, UNIQUE(SELECT A, B, C FROM TEST WHERE GR = G) FROM (VALUES 1, 2, 3) V(G);
-> G UNIQUE( SELECT A, B, C FROM PUBLIC.TEST /* PUBLIC.TEST.tableScan */ /* scanCount: 8 */ WHERE GR = G)
-> - ----------------------------------------------------------------------------------------------------
+> G UNIQUE( SELECT A, B, C FROM PUBLIC.TEST WHERE GR = G)
+> - -----------------------------------------------------
 > 1 TRUE
 > 2 TRUE
 > 3 TRUE
 > rows: 3
 
 SELECT G, UNIQUE(SELECT A, B FROM TEST WHERE GR = G ORDER BY A + B) FROM (VALUES 1, 2, 3) V(G);
-> G UNIQUE( SELECT A, B FROM PUBLIC.TEST /* PUBLIC.TEST.tableScan */ /* scanCount: 8 */ WHERE GR = G ORDER BY =A + B)
-> - -----------------------------------------------------------------------------------------------------------------
+> G UNIQUE( SELECT A, B FROM PUBLIC.TEST WHERE GR = G ORDER BY A + B)
+> - -----------------------------------------------------------------
 > 1 FALSE
 > 2 TRUE
 > 3 TRUE
 > rows: 3
+
+
 
 DROP TABLE TEST;
 > ok

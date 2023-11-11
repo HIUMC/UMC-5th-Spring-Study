@@ -1,5 +1,5 @@
 /*
- * Copyright 2004-2019 H2 Group. Multiple-Licensed under the MPL 2.0,
+ * Copyright 2004-2023 H2 Group. Multiple-Licensed under the MPL 2.0,
  * and the EPL 1.0 (https://h2database.com/html/license.html).
  * Initial Developer: H2 Group
  */
@@ -38,7 +38,7 @@ public class TestDataSource extends TestDb {
      * @param a ignored
      */
     public static void main(String... a) throws Exception {
-        TestBase.createCaller().init().test();
+        TestBase.createCaller().init().testFromMain();
     }
 
 //     public static void main(String... args) throws SQLException {
@@ -204,12 +204,7 @@ public class TestDataSource extends TestDb {
         assertFalse(ds.isWrapperFor(String.class));
         assertTrue(ds == ds.unwrap(Object.class));
         assertTrue(ds == ds.unwrap(DataSource.class));
-        try {
-            ds.unwrap(String.class);
-            fail();
-        } catch (SQLException ex) {
-            assertEquals(ErrorCode.INVALID_VALUE_2, ex.getErrorCode());
-        }
+        assertThrows(ErrorCode.INVALID_VALUE_2, () -> ds.unwrap(String.class));
     }
 
 }

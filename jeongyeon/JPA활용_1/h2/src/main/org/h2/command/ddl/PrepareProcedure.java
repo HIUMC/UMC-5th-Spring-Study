@@ -1,5 +1,5 @@
 /*
- * Copyright 2004-2019 H2 Group. Multiple-Licensed under the MPL 2.0,
+ * Copyright 2004-2023 H2 Group. Multiple-Licensed under the MPL 2.0,
  * and the EPL 1.0 (https://h2database.com/html/license.html).
  * Initial Developer: H2 Group
  */
@@ -10,7 +10,7 @@ import java.util.ArrayList;
 import org.h2.command.CommandInterface;
 import org.h2.command.Prepared;
 import org.h2.engine.Procedure;
-import org.h2.engine.Session;
+import org.h2.engine.SessionLocal;
 import org.h2.expression.Parameter;
 
 /**
@@ -22,7 +22,7 @@ public class PrepareProcedure extends DefineCommand {
     private String procedureName;
     private Prepared prepared;
 
-    public PrepareProcedure(Session session) {
+    public PrepareProcedure(SessionLocal session) {
         super(session);
     }
 
@@ -32,7 +32,7 @@ public class PrepareProcedure extends DefineCommand {
     }
 
     @Override
-    public int update() {
+    public long update() {
         Procedure proc = new Procedure(procedureName, prepared);
         prepared.setParameterList(parameters);
         prepared.setPrepareAlways(prepareAlways);

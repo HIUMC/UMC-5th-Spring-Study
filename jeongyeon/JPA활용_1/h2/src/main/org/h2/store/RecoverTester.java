@@ -1,5 +1,5 @@
 /*
- * Copyright 2004-2019 H2 Group. Multiple-Licensed under the MPL 2.0,
+ * Copyright 2004-2023 H2 Group. Multiple-Licensed under the MPL 2.0,
  * and the EPL 1.0 (https://h2database.com/html/license.html).
  * Initial Developer: H2 Group
  */
@@ -10,17 +10,16 @@ import java.io.OutputStreamWriter;
 import java.io.PrintWriter;
 import java.sql.SQLException;
 import java.util.HashSet;
-import java.util.Properties;
 
 import org.h2.api.ErrorCode;
 import org.h2.engine.ConnectionInfo;
 import org.h2.engine.Constants;
 import org.h2.engine.Database;
-import org.h2.engine.Session;
+import org.h2.engine.SessionLocal;
 import org.h2.message.DbException;
-import org.h2.store.fs.FilePathRec;
 import org.h2.store.fs.FileUtils;
 import org.h2.store.fs.Recorder;
+import org.h2.store.fs.rec.FilePathRec;
 import org.h2.tools.Recover;
 import org.h2.util.IOUtils;
 import org.h2.util.StringUtils;
@@ -32,7 +31,7 @@ import org.h2.util.Utils;
  */
 public class RecoverTester implements Recorder {
 
-    private static RecoverTester instance;
+    private static final RecoverTester instance = new RecoverTester();
 
     private String testDatabase = "memFS:reopen";
     private int writeCount = Utils.getProperty("h2.recoverTestOffset", 0);
@@ -49,18 +48,10 @@ public class RecoverTester implements Recorder {
      * @param recoverTest the value of the recover test parameter
      */
     public static synchronized void init(String recoverTest) {
-        RecoverTester tester = RecoverTester.getInstance();
         if (StringUtils.isNumber(recoverTest)) {
-            tester.setTestEvery(Integer.parseInt(recoverTest));
+            instance.setTestEvery(Integer.parseInt(recoverTest));
         }
-        FilePathRec.setRecorder(tester);
-    }
-
-    public static synchronized RecoverTester getInstance() {
-        if (instance == null) {
-            instance = new RecoverTester();
-        }
-        return instance;
+        FilePathRec.setRecorder(instance);
     }
 
     @Override
@@ -68,8 +59,7 @@ public class RecoverTester implements Recorder {
         if (op != Recorder.WRITE && op != Recorder.TRUNCATE) {
             return;
         }
-        if (!fileName.endsWith(Constants.SUFFIX_PAGE_FILE) &&
-                !fileName.endsWith(Constants.SUFFIX_MV_FILE)) {
+        if (!fileName.endsWith(Constants.SUFFIX_MV_FILE)) {
             return;
         }
         writeCount++;
@@ -102,23 +92,14 @@ public class RecoverTester implements Recorder {
     private synchronized void testDatabase(String fileName, PrintWriter out) {
         out.println("+ write #" + writeCount + " verify #" + verifyCount);
         try {
-            IOUtils.copyFiles(fileName, testDatabase + Constants.SUFFIX_PAGE_FILE);
-            String mvFileName = fileName.substring(0, fileName.length() -
-                    Constants.SUFFIX_PAGE_FILE.length()) +
-                    Constants.SUFFIX_MV_FILE;
-            if (FileUtils.exists(mvFileName)) {
-                IOUtils.copyFiles(mvFileName, testDatabase + Constants.SUFFIX_MV_FILE);
-            }
+            IOUtils.copyFiles(fileName, testDatabase + Constants.SUFFIX_MV_FILE);
             verifyCount++;
             // avoid using the Engine class to avoid deadlocks
-            Properties p = new Properties();
-            p.setProperty("user", "");
-            p.setProperty("password", "");
             ConnectionInfo ci = new ConnectionInfo("jdbc:h2:" + testDatabase +
-                    ";FILE_LOCK=NO;TRACE_LEVEL_FILE=0", p);
+                    ";FILE_LOCK=NO;TRACE_LEVEL_FILE=0", null, "", "");
             Database database = new Database(ci, null);
             // close the database
-            Session sysSession = database.getSystemSession();
+            SessionLocal sysSession = database.getSystemSession();
             sysSession.prepare("script to '" + testDatabase + ".sql'").query(0);
             sysSession.prepare("shutdown immediately").update();
             database.removeSession(null);
@@ -154,11 +135,10 @@ public class RecoverTester implements Recorder {
         }
         testDatabase += "X";
         try {
-            IOUtils.copyFiles(fileName, testDatabase + Constants.SUFFIX_PAGE_FILE);
+            IOUtils.copyFiles(fileName, testDatabase + Constants.SUFFIX_MV_FILE);
             // avoid using the Engine class to avoid deadlocks
-            Properties p = new Properties();
             ConnectionInfo ci = new ConnectionInfo("jdbc:h2:" +
-                        testDatabase + ";FILE_LOCK=NO", p);
+                        testDatabase + ";FILE_LOCK=NO", null, null, null);
             Database database = new Database(ci, null);
             // close the database
             database.removeSession(null);

@@ -1,4 +1,4 @@
--- Copyright 2004-2019 H2 Group. Multiple-Licensed under the MPL 2.0,
+-- Copyright 2004-2023 H2 Group. Multiple-Licensed under the MPL 2.0,
 -- and the EPL 1.0 (https://h2database.com/html/license.html).
 -- Initial Developer: H2 Group
 --
@@ -15,29 +15,29 @@ SELECT T1, T2, T1 = T2 FROM TEST;
 > 10:00:00+01 11:00:00+02 TRUE
 > rows: 1
 
-SELECT COLUMN_NAME, DATA_TYPE, TYPE_NAME, COLUMN_TYPE FROM INFORMATION_SCHEMA.COLUMNS
+SELECT COLUMN_NAME, DATA_TYPE FROM INFORMATION_SCHEMA.COLUMNS
     WHERE TABLE_NAME = 'TEST' ORDER BY ORDINAL_POSITION;
-> COLUMN_NAME DATA_TYPE TYPE_NAME           COLUMN_TYPE
-> ----------- --------- ------------------- -------------------
-> T1          2013      TIME WITH TIME ZONE TIME WITH TIME ZONE
-> T2          2013      TIME WITH TIME ZONE TIME WITH TIME ZONE
+> COLUMN_NAME DATA_TYPE
+> ----------- -------------------
+> T1          TIME WITH TIME ZONE
+> T2          TIME WITH TIME ZONE
 > rows (ordered): 2
 
 ALTER TABLE TEST ADD (T3 TIME(0), T4 TIME(9) WITHOUT TIME ZONE);
 > ok
 
-SELECT COLUMN_NAME, DATA_TYPE, TYPE_NAME, COLUMN_TYPE, NUMERIC_SCALE, DATETIME_PRECISION FROM INFORMATION_SCHEMA.COLUMNS
+SELECT COLUMN_NAME, DATA_TYPE, DATETIME_PRECISION FROM INFORMATION_SCHEMA.COLUMNS
     WHERE TABLE_NAME = 'TEST' ORDER BY ORDINAL_POSITION;
-> COLUMN_NAME DATA_TYPE TYPE_NAME           COLUMN_TYPE               NUMERIC_SCALE DATETIME_PRECISION
-> ----------- --------- ------------------- ------------------------- ------------- ------------------
-> T1          2013      TIME WITH TIME ZONE TIME WITH TIME ZONE       0             0
-> T2          2013      TIME WITH TIME ZONE TIME WITH TIME ZONE       0             0
-> T3          92        TIME                TIME(0)                   0             0
-> T4          92        TIME                TIME(9) WITHOUT TIME ZONE 9             9
+> COLUMN_NAME DATA_TYPE           DATETIME_PRECISION
+> ----------- ------------------- ------------------
+> T1          TIME WITH TIME ZONE 0
+> T2          TIME WITH TIME ZONE 0
+> T3          TIME                0
+> T4          TIME                9
 > rows (ordered): 4
 
 ALTER TABLE TEST ADD T5 TIME(10);
-> exception INVALID_VALUE_SCALE_PRECISION
+> exception INVALID_VALUE_SCALE
 
 DROP TABLE TEST;
 > ok
@@ -73,8 +73,11 @@ SELECT T8 FROM TEST;
 DROP TABLE TEST;
 > ok
 
+SET TIME ZONE 'UTC+10';
+> ok
+
 SELECT TIME WITH TIME ZONE '11:22:33';
-> exception INVALID_DATETIME_CONSTANT_2
+>> 11:22:33+10
 
 SELECT TIME WITH TIME ZONE '11:22:33 Europe/London';
 > exception INVALID_DATETIME_CONSTANT_2
@@ -96,3 +99,6 @@ SELECT TIME WITH TIME ZONE '23:00:00+01' - TIME WITH TIME ZONE '00:00:30-01';
 
 SELECT TIME WITH TIME ZONE '10:00:00-10' + INTERVAL '30' MINUTE;
 >> 10:30:00-10
+
+SET TIME ZONE LOCAL;
+> ok

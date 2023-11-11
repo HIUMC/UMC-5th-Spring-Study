@@ -1,6 +1,6 @@
 <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
 <!--
-Copyright 2004-2019 H2 Group. Multiple-Licensed under the MPL 2.0,
+Copyright 2004-2023 H2 Group. Multiple-Licensed under the MPL 2.0,
 and the EPL 1.0 (https://h2database.com/html/license.html).
 Initial Developer: H2 Group
 -->
@@ -112,14 +112,14 @@ li {
     <a href="https://github.com/h2database/h2database">open source</a>,
     <a href="license.html">free to use and distribute</a>.
 </li><li><a href="https://h2database.com/html/download.html">Download</a>:
-    <a href="http://repo1.maven.org/maven2/com/h2database/h2/1.4.200/h2-1.4.200.jar" class="link">jar</a>,
-    <a href="https://h2database.com/h2-setup-2019-10-14.exe" class="link">installer (Windows)</a>,
-    <a href="https://h2database.com/h2-2019-10-14.zip" class="link">zip</a>.
+    <a href="https://repo1.maven.org/maven2/com/h2database/h2/2.2.224/h2-2.2.224.jar" class="link">jar</a>,
+    <a href="https://github.com/h2database/h2database/releases/download/version-2.2.224/h2-setup-2023-09-17.exe" class="link">installer (Windows)</a>,
+    <a href="https://github.com/h2database/h2database/releases/download/version-2.2.224/h2-2023-09-17.zip" class="link">zip</a>.
 </li><li>To start the
     <a href="quickstart.html#h2_console">H2 Console tool</a>, double click the jar file, or
     run <code>java -jar h2*.jar</code>, <code>h2.bat</code>, or <code>h2.sh</code>.
 </li><li><a href="tutorial.html#creating_new_databases">A new database is automatically created</a>
-    <a href="features.html#database_only_if_exists">by default</a>.
+    <a href="features.html#database_only_if_exists">by default if an embedded URL is used</a>.
 </li><li><a href="features.html#closing_a_database">Closing the last connection closes the database</a>.
 </li></ul>
 
@@ -151,16 +151,21 @@ Reference:
 <code>jdbc:h2:./test</code> in the current(!) working directory<br />
 </p><p>
 <b><a href="features.html#in_memory_databases">In-Memory</a></b><br />
-<code>jdbc:h2:mem:test</code> multiple connections in one process<br />
+<code>jdbc:h2:mem:test</code> multiple connections in one process,
+database is removed when all connections are closed<br />
+<code>jdbc:h2:mem:test;DB_CLOSE_DELAY=-1</code> multiple connections in one process,
+database in not removed when all connections are closed
+(<a href="features.html#in_memory_databases">may create a memory leak</a>)<br />
 <code>jdbc:h2:mem:</code> unnamed private; one connection<br />
 </p><p>
 <b><a href="tutorial.html#using_server">Server Mode</a></b><br />
 <code>jdbc:h2:tcp://localhost/~/test</code> user home dir<br />
-<code>jdbc:h2:tcp://localhost//data/test</code> absolute dir<br />
+<code>jdbc:h2:tcp://localhost//data/test</code> or <code>jdbc:h2:tcp://localhost/D:/data/test</code> absolute dir<br />
 <a href="tutorial.html#using_server">Server start</a>:<code>java -cp *.jar org.h2.tools.Server</code>
 </p><p>
 <b><a href="features.html#database_url">Settings</a></b><br />
-<code>jdbc:h2:..;MODE=MySQL</code> <a href="features.html#compatibility" >compatibility (or HSQLDB,...)</a><br />
+<code>jdbc:h2:..;MODE=MySQL;DATABASE_TO_LOWER=TRUE</code>
+<a href="features.html#compatibility" >compatibility (or HSQLDB,...)</a><br />
 <code>jdbc:h2:..;TRACE_LEVEL_FILE=3</code> <a href="features.html#trace_options">log to *.trace.db</a><br />
 </p>
 
@@ -188,7 +193,7 @@ conn.close(); cp.dispose();
 &lt;dependency&gt;
     &lt;groupId&gt;com.h2database&lt;/groupId&gt;
     &lt;artifactId&gt;h2&lt;/artifactId&gt;
-    &lt;version&gt;1.4.200&lt;/version&gt;
+    &lt;version&gt;2.2.224&lt;/version&gt;
 &lt;/dependency&gt;
 </pre>
 

@@ -1,4 +1,4 @@
--- Copyright 2004-2019 H2 Group. Multiple-Licensed under the MPL 2.0,
+-- Copyright 2004-2023 H2 Group. Multiple-Licensed under the MPL 2.0,
 -- and the EPL 1.0 (https://h2database.com/html/license.html).
 -- Initial Developer: H2 Group
 --
@@ -13,6 +13,13 @@ SELECT * FROM TEST_VIEW;
 > B C
 > - -
 > b c
+> rows: 1
+
+SELECT TABLE_CATALOG, TABLE_SCHEMA, TABLE_NAME, VIEW_DEFINITION, CHECK_OPTION, IS_UPDATABLE, STATUS, REMARKS
+    FROM INFORMATION_SCHEMA.VIEWS WHERE TABLE_NAME = 'TEST_VIEW';
+> TABLE_CATALOG TABLE_SCHEMA TABLE_NAME VIEW_DEFINITION CHECK_OPTION IS_UPDATABLE STATUS REMARKS
+> ------------- ------------ ---------- --------------- ------------ ------------ ------ -------
+> SCRIPT        PUBLIC       TEST_VIEW  SELECT 'b', 'c' NONE         NO           VALID  null
 > rows: 1
 
 DROP VIEW TEST_VIEW;

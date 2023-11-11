@@ -1,5 +1,5 @@
 /*
- * Copyright 2004-2019 H2 Group. Multiple-Licensed under the MPL 2.0,
+ * Copyright 2004-2023 H2 Group. Multiple-Licensed under the MPL 2.0,
  * and the EPL 1.0 (https://h2database.com/html/license.html).
  * Initial Developer: H2 Group
  */
@@ -9,12 +9,11 @@ import java.util.HashMap;
 
 import org.h2.api.ErrorCode;
 import org.h2.message.DbException;
-import org.h2.util.Utils;
 
 /**
  * This class contains various database-level settings. To override the
  * documented default value for a database, append the setting in the database
- * URL: "jdbc:h2:./test;ALIAS_COLUMN_NAME=TRUE" when opening the first connection
+ * URL: "jdbc:h2:./test;ANALYZE_SAMPLE=1000" when opening the first connection
  * to the database. The settings can not be changed once the database is open.
  * <p>
  * Some settings are a last resort and temporary solution to work around a
@@ -25,28 +24,19 @@ import org.h2.util.Utils;
  */
 public class DbSettings extends SettingsBase {
 
-    private static DbSettings defaultSettings;
-
     /**
      * The initial size of the hash table.
      */
     static final int TABLE_SIZE = 64;
 
     /**
-     * Database setting <code>ALIAS_COLUMN_NAME</code> (default: false).<br />
-     * When enabled, aliased columns (as in SELECT ID AS I FROM TEST) return the
-     * alias (I in this case) in ResultSetMetaData.getColumnName() and 'null' in
-     * getTableName(). If disabled, the real column name (ID in this case) and
-     * table name is returned.
-     * <br />
-     * This setting only affects the default and the MySQL mode. When using
-     * any other mode, this feature is enabled for compatibility, even if this
-     * database setting is not enabled explicitly.
+     * INTERNAL.
+     * The default settings. Those must not be modified.
      */
-    public final boolean aliasColumnName = get("ALIAS_COLUMN_NAME", false);
+    public static final DbSettings DEFAULT = new DbSettings(new HashMap<>(TABLE_SIZE));
 
     /**
-     * Database setting <code>ANALYZE_AUTO</code> (default: 2000).<br />
+     * Database setting <code>ANALYZE_AUTO</code> (default: 2000).
      * After changing this many rows, ANALYZE is automatically run for a table.
      * Automatically running ANALYZE is disabled if set to 0. If set to 1000,
      * then ANALYZE will run against each user table after about 1000 changes to
@@ -57,13 +47,26 @@ public class DbSettings extends SettingsBase {
     public final int analyzeAuto = get("ANALYZE_AUTO", 2000);
 
     /**
-     * Database setting <code>ANALYZE_SAMPLE</code> (default: 10000).<br />
+     * Database setting <code>ANALYZE_SAMPLE</code> (default: 10000).
      * The default sample size when analyzing a table.
      */
     public final int analyzeSample = get("ANALYZE_SAMPLE", 10_000);
 
     /**
-     * Database setting <code>DATABASE_TO_LOWER</code> (default: false).<br />
+     * Database setting <code>AUTO_COMPACT_FILL_RATE</code>
+     * (default: 90, which means 90%, 0 disables auto-compacting).
+     * Set the auto-compact target fill rate. If the average fill rate (the
+     * percentage of the storage space that contains active data) of the
+     * chunks is lower, then the chunks with a low fill rate are re-written.
+     * Also, if the percentage of empty space between chunks is higher than
+     * this value, then chunks at the end of the file are moved. Compaction
+     * stops if the target fill rate is reached.
+     * This setting only affects MVStore engine.
+     */
+    public final int autoCompactFillRate = get("AUTO_COMPACT_FILL_RATE", 90);
+
+    /**
+     * Database setting <code>DATABASE_TO_LOWER</code> (default: false).
      * When set to true unquoted identifiers and short name of database are
      * converted to lower case. Value of this setting should not be changed
      * after creation of database. Setting this to "true" is experimental.
@@ -71,7 +74,7 @@ public class DbSettings extends SettingsBase {
     public final boolean databaseToLower;
 
     /**
-     * Database setting <code>DATABASE_TO_UPPER</code> (default: true).<br />
+     * Database setting <code>DATABASE_TO_UPPER</code> (default: true).
      * When set to true unquoted identifiers and short name of database are
      * converted to upper case.
      */
@@ -79,21 +82,14 @@ public class DbSettings extends SettingsBase {
 
     /**
      * Database setting <code>CASE_INSENSITIVE_IDENTIFIERS</code> (default:
-     * false).<br />
+     * false).
      * When set to true, all identifier names (table names, column names) are
      * case insensitive. Setting this to "true" is experimental.
      */
     public final boolean caseInsensitiveIdentifiers = get("CASE_INSENSITIVE_IDENTIFIERS", false);
 
     /**
-     * Database setting <code>DB_CLOSE_ON_EXIT</code> (default: true).<br />
-     * Close the database when the virtual machine exits normally, using a
-     * shutdown hook.
-     */
-    public final boolean dbCloseOnExit = get("DB_CLOSE_ON_EXIT", true);
-
-    /**
-     * Database setting <code>DEFAULT_CONNECTION</code> (default: false).<br />
+     * Database setting <code>DEFAULT_CONNECTION</code> (default: false).
      * Whether Java functions can use
      * <code>DriverManager.getConnection("jdbc:default:connection")</code> to
      * get a database connection. This feature is disabled by default for
@@ -103,14 +99,14 @@ public class DbSettings extends SettingsBase {
     public final boolean defaultConnection = get("DEFAULT_CONNECTION", false);
 
     /**
-     * Database setting <code>DEFAULT_ESCAPE</code> (default: \).<br />
+     * Database setting <code>DEFAULT_ESCAPE</code> (default: \).
      * The default escape character for LIKE comparisons. To select no escape
      * character, use an empty string.
      */
     public final String defaultEscape = get("DEFAULT_ESCAPE", "\\");
 
     /**
-     * Database setting <code>DEFRAG_ALWAYS</code> (default: false).<br />
+     * Database setting <code>DEFRAG_ALWAYS</code> (default: false)
      * Each time the database is closed normally, it is fully defragmented (the
      * same as SHUTDOWN DEFRAG). If you execute SHUTDOWN COMPACT, then this
      * setting is ignored.
@@ -118,22 +114,15 @@ public class DbSettings extends SettingsBase {
     public final boolean defragAlways = get("DEFRAG_ALWAYS", false);
 
     /**
-     * Database setting <code>DROP_RESTRICT</code> (default: true).<br />
-     * Whether the default action for DROP TABLE, DROP VIEW, DROP SCHEMA, and
-     * DROP DOMAIN is RESTRICT.
+     * Database setting <code>DROP_RESTRICT</code> (default: true)
+     * Whether the default action for DROP TABLE, DROP VIEW, DROP SCHEMA, DROP
+     * DOMAIN, and DROP CONSTRAINT is RESTRICT.
      */
     public final boolean dropRestrict = get("DROP_RESTRICT", true);
 
     /**
-     * Database setting <code>EARLY_FILTER</code> (default: false).<br />
-     * This setting allows table implementations to apply filter conditions
-     * early on.
-     */
-    public final boolean earlyFilter = get("EARLY_FILTER", false);
-
-    /**
      * Database setting <code>ESTIMATED_FUNCTION_TABLE_ROWS</code> (default:
-     * 1000).<br />
+     * 1000).
      * The estimated number of rows in a function table (for example, CSVREAD or
      * FTL_SEARCH). This value is used by the optimizer.
      */
@@ -141,18 +130,8 @@ public class DbSettings extends SettingsBase {
             "ESTIMATED_FUNCTION_TABLE_ROWS", 1000);
 
     /**
-     * Database setting <code>FUNCTIONS_IN_SCHEMA</code>
-     * (default: true).<br />
-     * If set, all functions are stored in a schema. Specially, the SCRIPT
-     * statement will always include the schema name in the CREATE ALIAS
-     * statement. This is not backward compatible with H2 versions 1.2.134 and
-     * older.
-     */
-    public final boolean functionsInSchema = get("FUNCTIONS_IN_SCHEMA", true);
-
-    /**
      * Database setting <code>LOB_TIMEOUT</code> (default: 300000,
-     * which means 5 minutes).<br />
+     * which means 5 minutes).
      * The number of milliseconds a temporary LOB reference is kept until it
      * times out. After the timeout, the LOB is no longer accessible using this
      * reference.
@@ -160,21 +139,13 @@ public class DbSettings extends SettingsBase {
     public final int lobTimeout = get("LOB_TIMEOUT", 300_000);
 
     /**
-     * Database setting <code>MAX_COMPACT_COUNT</code>
-     * (default: Integer.MAX_VALUE).<br />
-     * The maximum number of pages to move when closing a database.
-     */
-    public final int maxCompactCount = get("MAX_COMPACT_COUNT",
-            Integer.MAX_VALUE);
-
-    /**
-     * Database setting <code>MAX_COMPACT_TIME</code> (default: 200).<br />
+     * Database setting <code>MAX_COMPACT_TIME</code> (default: 200).
      * The maximum time in milliseconds used to compact a database when closing.
      */
     public final int maxCompactTime = get("MAX_COMPACT_TIME", 200);
 
     /**
-     * Database setting <code>MAX_QUERY_TIMEOUT</code> (default: 0).<br />
+     * Database setting <code>MAX_QUERY_TIMEOUT</code> (default: 0).
      * The maximum timeout of a query in milliseconds. The default is 0, meaning
      * no limit. Please note the actual query timeout may be set to a lower
      * value.
@@ -182,7 +153,7 @@ public class DbSettings extends SettingsBase {
     public final int maxQueryTimeout = get("MAX_QUERY_TIMEOUT", 0);
 
     /**
-     * Database setting <code>OPTIMIZE_DISTINCT</code> (default: true).<br />
+     * Database setting <code>OPTIMIZE_DISTINCT</code> (default: true).
      * Improve the performance of simple DISTINCT queries if an index is
      * available for the given column. The optimization is used if:
      * <ul>
@@ -197,7 +168,7 @@ public class DbSettings extends SettingsBase {
 
     /**
      * Database setting <code>OPTIMIZE_EVALUATABLE_SUBQUERIES</code> (default:
-     * true).<br />
+     * true).
      * Optimize subqueries that are not dependent on the outer query.
      */
     public final boolean optimizeEvaluatableSubqueries = get(
@@ -205,7 +176,7 @@ public class DbSettings extends SettingsBase {
 
     /**
      * Database setting <code>OPTIMIZE_INSERT_FROM_SELECT</code>
-     * (default: true).<br />
+     * (default: true).
      * Insert into table from query directly bypassing temporary disk storage.
      * This also applies to create table as select.
      */
@@ -213,63 +184,40 @@ public class DbSettings extends SettingsBase {
             "OPTIMIZE_INSERT_FROM_SELECT", true);
 
     /**
-     * Database setting <code>OPTIMIZE_IN_LIST</code> (default: true).<br />
+     * Database setting <code>OPTIMIZE_IN_LIST</code> (default: true).
      * Optimize IN(...) and IN(SELECT ...) comparisons. This includes
      * optimization for SELECT, DELETE, and UPDATE.
      */
     public final boolean optimizeInList = get("OPTIMIZE_IN_LIST", true);
 
     /**
-     * Database setting <code>OPTIMIZE_IN_SELECT</code> (default: true).<br />
+     * Database setting <code>OPTIMIZE_IN_SELECT</code> (default: true).
      * Optimize IN(SELECT ...) comparisons. This includes
      * optimization for SELECT, DELETE, and UPDATE.
      */
     public final boolean optimizeInSelect = get("OPTIMIZE_IN_SELECT", true);
 
     /**
-     * Database setting <code>OPTIMIZE_OR</code> (default: true).<br />
+     * Database setting <code>OPTIMIZE_OR</code> (default: true).
      * Convert (C=? OR C=?) to (C IN(?, ?)).
      */
     public final boolean optimizeOr = get("OPTIMIZE_OR", true);
 
     /**
-     * Database setting <code>OPTIMIZE_TWO_EQUALS</code> (default: true).<br />
+     * Database setting <code>OPTIMIZE_TWO_EQUALS</code> (default: true).
      * Optimize expressions of the form A=B AND B=1. In this case, AND A=1 is
      * added so an index on A can be used.
      */
     public final boolean optimizeTwoEquals = get("OPTIMIZE_TWO_EQUALS", true);
 
     /**
-     * Database setting <code>OPTIMIZE_UPDATE</code> (default: true).<br />
-     * Speed up inserts, updates, and deletes by not reading all rows from a
-     * page unless necessary.
+     * Database setting <code>OPTIMIZE_SIMPLE_SINGLE_ROW_SUBQUERIES</code> (default: true).
+     * Optimize expressions of the form (SELECT A) to A.
      */
-    public final boolean optimizeUpdate = get("OPTIMIZE_UPDATE", true);
+    public final boolean optimizeSimpleSingleRowSubqueries = get("OPTIMIZE_SIMPLE_SINGLE_ROW_SUBQUERIES", true);
 
     /**
-     * Database setting <code>PAGE_STORE_MAX_GROWTH</code>
-     * (default: 128 * 1024).<br />
-     * The maximum number of pages the file grows at any time.
-     */
-    public final int pageStoreMaxGrowth = get("PAGE_STORE_MAX_GROWTH",
-            128 * 1024);
-
-    /**
-     * Database setting <code>PAGE_STORE_INTERNAL_COUNT</code>
-     * (default: false).<br />
-     * Update the row counts on a node level.
-     */
-    public final boolean pageStoreInternalCount = get(
-            "PAGE_STORE_INTERNAL_COUNT", false);
-
-    /**
-     * Database setting <code>PAGE_STORE_TRIM</code> (default: true).<br />
-     * Trim the database size when closing.
-     */
-    public final boolean pageStoreTrim = get("PAGE_STORE_TRIM", true);
-
-    /**
-     * Database setting <code>QUERY_CACHE_SIZE</code> (default: 8).<br />
+     * Database setting <code>QUERY_CACHE_SIZE</code> (default: 8).
      * The size of the query cache, in number of cached statements. Each session
      * has it's own cache with the given size. The cache is only used if the SQL
      * statement and all parameters match. Only the last returned result per
@@ -282,13 +230,13 @@ public class DbSettings extends SettingsBase {
     public final int queryCacheSize = get("QUERY_CACHE_SIZE", 8);
 
     /**
-     * Database setting <code>RECOMPILE_ALWAYS</code> (default: false).<br />
+     * Database setting <code>RECOMPILE_ALWAYS</code> (default: false).
      * Always recompile prepared statements.
      */
     public final boolean recompileAlways = get("RECOMPILE_ALWAYS", false);
 
     /**
-     * Database setting <code>REUSE_SPACE</code> (default: true).<br />
+     * Database setting <code>REUSE_SPACE</code> (default: true).
      * If disabled, all changes are appended to the database file, and existing
      * content is never overwritten. This setting has no effect if the database
      * is already open.
@@ -297,7 +245,7 @@ public class DbSettings extends SettingsBase {
 
     /**
      * Database setting <code>SHARE_LINKED_CONNECTIONS</code>
-     * (default: true).<br />
+     * (default: true).
      * Linked connections should be shared, that means connections to the same
      * database should be used for all linked tables that connect to the same
      * database.
@@ -307,38 +255,42 @@ public class DbSettings extends SettingsBase {
 
     /**
      * Database setting <code>DEFAULT_TABLE_ENGINE</code>
-     * (default: null).<br />
+     * (default: null).
      * The default table engine to use for new tables.
      */
     public final String defaultTableEngine = get("DEFAULT_TABLE_ENGINE", null);
 
     /**
      * Database setting <code>MV_STORE</code>
-     * (default: true).<br />
+     * (default: true).
      * Use the MVStore storage engine.
      */
-    public boolean mvStore = get("MV_STORE", true);
+    public final boolean mvStore = get("MV_STORE", true);
 
     /**
      * Database setting <code>COMPRESS</code>
-     * (default: false).<br />
+     * (default: false).
      * Compress data when storing.
      */
     public final boolean compressData = get("COMPRESS", false);
 
     /**
      * Database setting <code>IGNORE_CATALOGS</code>
-     * (default: false).<br />
+     * (default: false).
      * If set, all catalog names in identifiers are silently accepted
      * without comparing them with the short name of the database.
      */
     public final boolean ignoreCatalogs = get("IGNORE_CATALOGS", false);
 
+    /**
+     * Database setting <code>ZERO_BASED_ENUMS</code>
+     * (default: false).
+     * If set, ENUM ordinal values are 0-based.
+     */
+    public final boolean zeroBasedEnums = get("ZERO_BASED_ENUMS", false);
+
     private DbSettings(HashMap<String, String> s) {
         super(s);
-        if (s.get("NESTED_JOINS") != null || Utils.getProperty("h2.nestedJoins", null) != null) {
-            throw DbException.getUnsupportedException("NESTED_JOINS setting is not available since 1.4.197");
-        }
         boolean lower = get("DATABASE_TO_LOWER", false);
         boolean upperSet = containsKey("DATABASE_TO_UPPER");
         boolean upper = get("DATABASE_TO_UPPER", true);
@@ -357,38 +309,14 @@ public class DbSettings extends SettingsBase {
     }
 
     /**
-     * Sets the database engine setting.
-     *
-     * @param mvStore
-     *            true for MVStore engine, false for PageStore engine
-     */
-    void setMvStore(boolean mvStore) {
-        this.mvStore = mvStore;
-        set("MV_STORE", mvStore);
-    }
-
-    /**
      * INTERNAL.
      * Get the settings for the given properties (may not be null).
      *
      * @param s the settings
      * @return the settings
      */
-    public static DbSettings getInstance(HashMap<String, String> s) {
+    static DbSettings getInstance(HashMap<String, String> s) {
         return new DbSettings(s);
-    }
-
-    /**
-     * INTERNAL.
-     * Get the default settings. Those must not be modified.
-     *
-     * @return the settings
-     */
-    public static DbSettings getDefaultSettings() {
-        if (defaultSettings == null) {
-            defaultSettings = new DbSettings(new HashMap<String, String>(TABLE_SIZE));
-        }
-        return defaultSettings;
     }
 
 }

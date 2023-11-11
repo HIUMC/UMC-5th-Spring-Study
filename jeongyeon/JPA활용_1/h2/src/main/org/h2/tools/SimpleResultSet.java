@@ -1,5 +1,5 @@
 /*
- * Copyright 2004-2019 H2 Group. Multiple-Licensed under the MPL 2.0,
+ * Copyright 2004-2023 H2 Group. Multiple-Licensed under the MPL 2.0,
  * and the EPL 1.0 (https://h2database.com/html/license.html).
  * Initial Developer: H2 Group
  */
@@ -31,7 +31,6 @@ import java.util.Calendar;
 import java.util.Map;
 import java.util.UUID;
 import org.h2.api.ErrorCode;
-import org.h2.jdbc.JdbcResultSetBackwardsCompat;
 import org.h2.message.DbException;
 import org.h2.util.Bits;
 import org.h2.util.JdbcUtils;
@@ -39,6 +38,8 @@ import org.h2.util.MathUtils;
 import org.h2.util.SimpleColumnInfo;
 import org.h2.util.Utils;
 import org.h2.value.DataType;
+import org.h2.value.Value;
+import org.h2.value.ValueToObjectConverter;
 
 /**
  * This class is a simple result set and meta data implementation.
@@ -58,8 +59,7 @@ import org.h2.value.DataType;
  * </pre>
  *
  */
-public class SimpleResultSet implements ResultSet, ResultSetMetaData,
-        JdbcResultSetBackwardsCompat {
+public class SimpleResultSet implements ResultSet, ResultSetMetaData {
 
     private ArrayList<Object[]> rows;
     private Object[] currentRow;
@@ -99,8 +99,7 @@ public class SimpleResultSet implements ResultSet, ResultSetMetaData,
      */
     public void addColumn(String name, int sqlType, int precision, int scale) {
         int valueType = DataType.convertSQLTypeToValueType(sqlType);
-        addColumn(name, sqlType, DataType.getDataType(valueType).name,
-                precision, scale);
+        addColumn(name, sqlType, Value.getTypeName(valueType), precision, scale);
     }
 
     /**
@@ -2003,7 +2002,7 @@ public class SimpleResultSet implements ResultSet, ResultSetMetaData,
     @Override
     public String getColumnClassName(int columnIndex) throws SQLException {
         int type = DataType.getValueTypeFromResultSet(this, columnIndex);
-        return DataType.getTypeClassName(type, true);
+        return ValueToObjectConverter.getDefaultClass(type, true).getName();
     }
 
     /**
@@ -2204,7 +2203,7 @@ public class SimpleResultSet implements ResultSet, ResultSetMetaData,
      */
     @Override
     public boolean rowUpdated() throws SQLException {
-        throw getUnsupportedException();
+        return true;
     }
 
     /**
@@ -2317,19 +2316,33 @@ public class SimpleResultSet implements ResultSet, ResultSetMetaData,
     }
 
     /**
-     * INTERNAL
+     * Return an object of this class if possible.
+     *
+     * @param iface the class
+     * @return this
      */
     @Override
+    @SuppressWarnings("unchecked")
     public <T> T unwrap(Class<T> iface) throws SQLException {
-        throw getUnsupportedException();
+        try {
+            if (isWrapperFor(iface)) {
+                return (T) this;
+            }
+            throw DbException.getInvalidValueException("iface", iface);
+        } catch (Exception e) {
+            throw DbException.toSQLException(e);
+        }
     }
 
     /**
-     * INTERNAL
+     * Checks if unwrap can return an object of this class.
+     *
+     * @param iface the class
+     * @return whether or not the interface is assignable from this class
      */
     @Override
     public boolean isWrapperFor(Class<?> iface) throws SQLException {
-        throw getUnsupportedException();
+        return iface != null && iface.isAssignableFrom(getClass());
     }
 
     /**

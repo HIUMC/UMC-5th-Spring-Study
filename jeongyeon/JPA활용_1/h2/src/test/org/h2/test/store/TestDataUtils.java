@@ -1,5 +1,5 @@
 /*
- * Copyright 2004-2019 H2 Group. Multiple-Licensed under the MPL 2.0,
+ * Copyright 2004-2023 H2 Group. Multiple-Licensed under the MPL 2.0,
  * and the EPL 1.0 (https://h2database.com/html/license.html).
  * Initial Developer: H2 Group
  */
@@ -11,9 +11,9 @@ import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Random;
-
 import org.h2.mvstore.Chunk;
 import org.h2.mvstore.DataUtils;
+import org.h2.mvstore.MVStoreException;
 import org.h2.mvstore.WriteBuffer;
 import org.h2.test.TestBase;
 
@@ -28,7 +28,7 @@ public class TestDataUtils extends TestBase {
      * @param a ignored
      */
     public static void main(String... a) throws Exception {
-        TestBase.createCaller().init().test();
+        TestBase.createCaller().init().testFromMain();
     }
 
     @Override
@@ -143,7 +143,7 @@ public class TestDataUtils extends TestBase {
                 HashMap<String, String> map = DataUtils.parseMap(buff.toString());
                 assertNotNull(map);
                 // ok
-            } catch (IllegalStateException e) {
+            } catch (MVStoreException e) {
                 // ok - but not another exception
             }
         }
@@ -283,7 +283,7 @@ public class TestDataUtils extends TestBase {
         assertEquals(0, DataUtils.PAGE_TYPE_LEAF);
         assertEquals(1, DataUtils.PAGE_TYPE_NODE);
 
-        long max = DataUtils.getPagePos(Chunk.MAX_ID, Integer.MAX_VALUE,
+        long max = DataUtils.composePagePos(Chunk.MAX_ID, Integer.MAX_VALUE,
                     Integer.MAX_VALUE, DataUtils.PAGE_TYPE_NODE);
         String hex = Long.toHexString(max);
         assertEquals(max, DataUtils.parseHexLong(hex));
@@ -292,12 +292,12 @@ public class TestDataUtils extends TestBase {
         assertEquals(DataUtils.PAGE_LARGE, DataUtils.getPageMaxLength(max));
         assertEquals(DataUtils.PAGE_TYPE_NODE, DataUtils.getPageType(max));
 
-        long overflow = DataUtils.getPagePos(Chunk.MAX_ID + 1,
+        long overflow = DataUtils.composePagePos(Chunk.MAX_ID + 1,
                 Integer.MAX_VALUE, Integer.MAX_VALUE, DataUtils.PAGE_TYPE_NODE);
         assertTrue(Chunk.MAX_ID + 1 != DataUtils.getPageChunkId(overflow));
 
         for (int i = 0; i < Chunk.MAX_ID; i++) {
-            long pos = DataUtils.getPagePos(i, 3, 128, 1);
+            long pos = DataUtils.composePagePos(i, 3, 128, 1);
             assertEquals(i, DataUtils.getPageChunkId(pos));
             assertEquals(3, DataUtils.getPageOffset(pos));
             assertEquals(128, DataUtils.getPageMaxLength(pos));
@@ -309,7 +309,7 @@ public class TestDataUtils extends TestBase {
                 for (long offset = 0; offset < Integer.MAX_VALUE;
                         offset += Integer.MAX_VALUE / 100) {
                     for (int length = 0; length < 2000000; length += 200000) {
-                        long pos = DataUtils.getPagePos(
+                        long pos = DataUtils.composePagePos(
                                 chunkId, (int) offset, length, type);
                         assertEquals(chunkId, DataUtils.getPageChunkId(pos));
                         assertEquals(offset, DataUtils.getPageOffset(pos));

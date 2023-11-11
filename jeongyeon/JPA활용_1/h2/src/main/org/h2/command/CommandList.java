@@ -1,5 +1,5 @@
 /*
- * Copyright 2004-2019 H2 Group. Multiple-Licensed under the MPL 2.0,
+ * Copyright 2004-2023 H2 Group. Multiple-Licensed under the MPL 2.0,
  * and the EPL 1.0 (https://h2database.com/html/license.html).
  * Initial Developer: H2 Group
  */
@@ -8,9 +8,8 @@ package org.h2.command;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.Set;
-
 import org.h2.engine.DbObject;
-import org.h2.engine.Session;
+import org.h2.engine.SessionLocal;
 import org.h2.expression.Parameter;
 import org.h2.expression.ParameterInterface;
 import org.h2.result.ResultInterface;
@@ -27,7 +26,7 @@ class CommandList extends Command {
     private String remaining;
     private Command remainingCommand;
 
-    CommandList(Session session, String sql, CommandContainer command, ArrayList<Prepared> commands,
+    CommandList(SessionLocal session, String sql, CommandContainer command, ArrayList<Prepared> commands,
             ArrayList<Parameter> parameters, String remaining) {
         super(session, sql);
         this.command = command;
@@ -69,12 +68,7 @@ class CommandList extends Command {
     }
 
     @Override
-    public void prepareJoinBatch() {
-        command.prepareJoinBatch();
-    }
-
-    @Override
-    public ResultInterface query(int maxrows) {
+    public ResultInterface query(long maxrows) {
         ResultInterface result = command.query(maxrows);
         executeRemaining();
         return result;
@@ -124,4 +118,18 @@ class CommandList extends Command {
         }
         return dependencies;
     }
+
+    @Override
+    protected boolean isRetryable() {
+        if (!command.isRetryable()) {
+            return false;
+        }
+        for (Prepared prepared : commands) {
+            if (!prepared.isRetryable()) {
+                return false;
+            }
+        }
+        return remainingCommand == null || remainingCommand.isRetryable();
+    }
+
 }

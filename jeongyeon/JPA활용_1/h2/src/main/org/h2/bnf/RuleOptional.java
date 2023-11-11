@@ -1,5 +1,5 @@
 /*
- * Copyright 2004-2019 H2 Group. Multiple-Licensed under the MPL 2.0,
+ * Copyright 2004-2023 H2 Group. Multiple-Licensed under the MPL 2.0,
  * and the EPL 1.0 (https://h2database.com/html/license.html).
  * Initial Developer: H2 Group
  */
@@ -20,6 +20,13 @@ public class RuleOptional implements Rule {
 
     @Override
     public void accept(BnfVisitor visitor) {
+        if (rule instanceof RuleList) {
+            RuleList ruleList = (RuleList) rule;
+            if (ruleList.or) {
+                visitor.visitRuleOptional(ruleList.list);
+                return;
+            }
+        }
         visitor.visitRuleOptional(rule);
     }
 
@@ -35,6 +42,11 @@ public class RuleOptional implements Rule {
         sentence.stopIfRequired();
         rule.autoComplete(sentence);
         return true;
+    }
+
+    @Override
+    public String toString() {
+        return '[' + rule.toString() + ']';
     }
 
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright 2004-2019 H2 Group. Multiple-Licensed under the MPL 2.0,
+ * Copyright 2004-2023 H2 Group. Multiple-Licensed under the MPL 2.0,
  * and the EPL 1.0 (https://h2database.com/html/license.html).
  * Initial Developer: H2 Group
  */
@@ -7,30 +7,35 @@ package org.h2.schema;
 
 import java.lang.reflect.Method;
 import java.sql.Connection;
+import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.Arrays;
 
 import org.h2.api.ErrorCode;
 import org.h2.api.Trigger;
-import org.h2.command.Parser;
 import org.h2.engine.Constants;
 import org.h2.engine.DbObject;
-import org.h2.engine.Session;
+import org.h2.engine.SessionLocal;
+import org.h2.jdbc.JdbcConnection;
+import org.h2.jdbc.JdbcResultSet;
 import org.h2.message.DbException;
 import org.h2.message.Trace;
 import org.h2.result.Row;
+import org.h2.result.SimpleResult;
+import org.h2.table.Column;
 import org.h2.table.Table;
+import org.h2.tools.TriggerAdapter;
 import org.h2.util.JdbcUtils;
 import org.h2.util.SourceCompiler;
 import org.h2.util.StringUtils;
-import org.h2.value.DataType;
 import org.h2.value.Value;
+import org.h2.value.ValueToObjectConverter;
 
 /**
  *A trigger is created using the statement
  * CREATE TRIGGER
  */
-public class TriggerObject extends SchemaObjectBase {
+public final class TriggerObject extends SchemaObject {
 
     /**
      * The default queue size.
@@ -73,7 +78,7 @@ public class TriggerObject extends SchemaObjectBase {
             return;
         }
         try {
-            Session sysSession = database.getSystemSession();
+            SessionLocal sysSession = database.getSystemSession();
             Connection c2 = sysSession.createConnection(false);
             Object obj;
             if (triggerClassName != null) {
@@ -158,7 +163,7 @@ public class TriggerObject extends SchemaObjectBase {
      * @param type the trigger type
      * @param beforeAction if this method is called before applying the changes
      */
-    public void fire(Session session, int type, boolean beforeAction) {
+    public void fire(SessionLocal session, int type, boolean beforeAction) {
         if (rowBased || before != beforeAction || (typeMask & type) == 0) {
             return;
         }
@@ -168,32 +173,31 @@ public class TriggerObject extends SchemaObjectBase {
         if (type != Trigger.SELECT) {
             old = session.setCommitOrRollbackDisabled(true);
         }
-        Value identity = session.getLastScopeIdentity();
+        Value identity = session.getLastIdentity();
         try {
-            triggerCallback.fire(c2, null, null);
+            if (triggerCallback instanceof TriggerAdapter) {
+                ((TriggerAdapter) triggerCallback).fire(c2, (ResultSet) null, (ResultSet) null);
+            } else {
+                triggerCallback.fire(c2, null, null);
+            }
         } catch (Throwable e) {
             throw getErrorExecutingTrigger(e);
         } finally {
-            if (session.getLastTriggerIdentity() != null) {
-                session.setLastScopeIdentity(session.getLastTriggerIdentity());
-                session.setLastTriggerIdentity(null);
-            } else {
-                session.setLastScopeIdentity(identity);
-            }
+            session.setLastIdentity(identity);
             if (type != Trigger.SELECT) {
                 session.setCommitOrRollbackDisabled(old);
             }
         }
     }
 
-    private static Object[] convertToObjectList(Row row) {
+    private static Object[] convertToObjectList(Row row, JdbcConnection conn) {
         if (row == null) {
             return null;
         }
         int len = row.getColumnCount();
         Object[] list = new Object[len];
         for (int i = 0; i < len; i++) {
-            list[i] = row.getValue(i).getObject();
+            list[i] = ValueToObjectConverter.valueToDefaultObject(row.getValue(i), conn, false);
         }
         return list;
     }
@@ -213,7 +217,7 @@ public class TriggerObject extends SchemaObjectBase {
      * @param rollback when the operation occurred within a rollback
      * @return true if no further action is required (for 'instead of' triggers)
      */
-    public boolean fireRow(Session session, Table table, Row oldRow, Row newRow,
+    public boolean fireRow(SessionLocal session, Table table, Row oldRow, Row newRow,
             boolean beforeAction, boolean rollback) {
         if (!rowBased || before != beforeAction) {
             return false;
@@ -222,8 +226,6 @@ public class TriggerObject extends SchemaObjectBase {
             return false;
         }
         load();
-        Object[] oldList;
-        Object[] newList;
         boolean fire = false;
         if ((typeMask & Trigger.INSERT) != 0) {
             if (oldRow == null && newRow != null) {
@@ -243,30 +245,56 @@ public class TriggerObject extends SchemaObjectBase {
         if (!fire) {
             return false;
         }
-        oldList = convertToObjectList(oldRow);
-        newList = convertToObjectList(newRow);
-        Object[] newListBackup;
-        if (before && newList != null) {
-            newListBackup = Arrays.copyOf(newList, newList.length);
-        } else {
-            newListBackup = null;
-        }
-        Connection c2 = session.createConnection(false);
+        JdbcConnection c2 = session.createConnection(false);
         boolean old = session.getAutoCommit();
         boolean oldDisabled = session.setCommitOrRollbackDisabled(true);
-        Value identity = session.getLastScopeIdentity();
+        Value identity = session.getLastIdentity();
         try {
             session.setAutoCommit(false);
-            try {
-                triggerCallback.fire(c2, oldList, newList);
-            } catch (Throwable e) {
-                throw getErrorExecutingTrigger(e);
-            }
-            if (newListBackup != null) {
-                for (int i = 0; i < newList.length; i++) {
-                    Object o = newList[i];
-                    if (o != newListBackup[i]) {
-                        newRow.setValue(i, DataType.convertToValue(session, o, Value.UNKNOWN));
+            if (triggerCallback instanceof TriggerAdapter) {
+                JdbcResultSet oldResultSet = oldRow != null ? createResultSet(c2, table, oldRow, false) : null;
+                JdbcResultSet newResultSet = newRow != null ? createResultSet(c2, table, newRow, before) : null;
+                try {
+                    ((TriggerAdapter) triggerCallback).fire(c2, oldResultSet, newResultSet);
+                } catch (Throwable e) {
+                    throw getErrorExecutingTrigger(e);
+                }
+                if (newResultSet != null) {
+                    Value[] updatedList = newResultSet.getUpdateRow();
+                    if (updatedList != null) {
+                        boolean modified = false;
+                        for (int i = 0, l = updatedList.length; i < l; i++) {
+                            Value v = updatedList[i];
+                            if (v != null) {
+                                modified = true;
+                                newRow.setValue(i, v);
+                            }
+                        }
+                        if (modified) {
+                            table.convertUpdateRow(session, newRow, true);
+                        }
+                    }
+                }
+            } else {
+                Object[] oldList = convertToObjectList(oldRow, c2);
+                Object[] newList = convertToObjectList(newRow, c2);
+                Object[] newListBackup = before && newList != null ? Arrays.copyOf(newList, newList.length) : null;
+                try {
+                    triggerCallback.fire(c2, oldList, newList);
+                } catch (Throwable e) {
+                    throw getErrorExecutingTrigger(e);
+                }
+                if (newListBackup != null) {
+                    boolean modified = false;
+                    for (int i = 0; i < newList.length; i++) {
+                        Object o = newList[i];
+                        if (o != newListBackup[i]) {
+                            modified = true;
+                            newRow.setValue(i, ValueToObjectConverter.objectToValue(session, o, Value.UNKNOWN));
+                        }
+                    }
+                    if (modified) {
+                        table.convertUpdateRow(session, newRow, true);
                     }
                 }
             }
@@ -277,16 +305,28 @@ public class TriggerObject extends SchemaObjectBase {
                 throw DbException.convert(e);
             }
         } finally {
-            if (session.getLastTriggerIdentity() != null) {
-                session.setLastScopeIdentity(session.getLastTriggerIdentity());
-                session.setLastTriggerIdentity(null);
-            } else {
-                session.setLastScopeIdentity(identity);
-            }
+            session.setLastIdentity(identity);
             session.setCommitOrRollbackDisabled(oldDisabled);
             session.setAutoCommit(old);
         }
         return insteadOf;
+    }
+
+    private static JdbcResultSet createResultSet(JdbcConnection conn, Table table, Row row, boolean updatable)
+            throws SQLException {
+        SimpleResult result = new SimpleResult(table.getSchema().getName(), table.getName());
+        for (Column c : table.getColumns()) {
+            result.addColumn(c.getName(), c.getType());
+        }
+        /*
+         * Old implementation works with and without next() invocation, so add
+         * the row twice for compatibility.
+         */
+        result.addRow(row.getValueList());
+        result.addRow(row.getValueList());
+        JdbcResultSet resultSet = new JdbcResultSet(conn, null, null, result, -1, false, false, updatable);
+        resultSet.next();
+        return resultSet;
     }
 
     private DbException getErrorExecutingTrigger(Throwable e) {
@@ -301,6 +341,15 @@ public class TriggerObject extends SchemaObjectBase {
     }
 
     /**
+     * Returns the trigger type.
+     *
+     * @return the trigger type
+     */
+    public int getTypeMask() {
+        return typeMask;
+    }
+
+    /**
      * Set the trigger type.
      *
      * @param typeMask the type
@@ -311,6 +360,10 @@ public class TriggerObject extends SchemaObjectBase {
 
     public void setRowBased(boolean rowBased) {
         this.rowBased = rowBased;
+    }
+
+    public boolean isRowBased() {
+        return rowBased;
     }
 
     public void setQueueSize(int size) {
@@ -333,9 +386,8 @@ public class TriggerObject extends SchemaObjectBase {
         this.onRollback = onRollback;
     }
 
-    @Override
-    public String getDropSQL() {
-        return null;
+    public boolean isOnRollback() {
+        return onRollback;
     }
 
     @Override
@@ -350,7 +402,7 @@ public class TriggerObject extends SchemaObjectBase {
             builder.append(" AFTER ");
         }
         getTypeNameList(builder).append(" ON ");
-        targetTable.getSQL(builder, true);
+        targetTable.getSQL(builder, DEFAULT_SQL_FLAGS);
         if (rowBased) {
             builder.append(" FOR EACH ROW");
         }
@@ -360,11 +412,9 @@ public class TriggerObject extends SchemaObjectBase {
             builder.append(" QUEUE ").append(queueSize);
         }
         if (triggerClassName != null) {
-            builder.append(" CALL ");
-            Parser.quoteIdentifier(builder, triggerClassName, true);
+            StringUtils.quoteStringSQL(builder.append(" CALL "), triggerClassName);
         } else {
-            builder.append(" AS ");
-            StringUtils.quoteStringSQL(builder, triggerSource);
+            StringUtils.quoteStringSQL(builder.append(" AS "), triggerSource);
         }
         return builder.toString();
     }
@@ -413,7 +463,7 @@ public class TriggerObject extends SchemaObjectBase {
 
     @Override
     public String getCreateSQL() {
-        return getCreateSQLForCopy(table, getSQL(true));
+        return getCreateSQLForCopy(table, getSQL(DEFAULT_SQL_FLAGS));
     }
 
     @Override
@@ -422,7 +472,7 @@ public class TriggerObject extends SchemaObjectBase {
     }
 
     @Override
-    public void removeChildrenAndResources(Session session) {
+    public void removeChildrenAndResources(SessionLocal session) {
         table.removeTrigger(this);
         database.removeMeta(session, getId());
         if (triggerCallback != null) {
@@ -437,11 +487,6 @@ public class TriggerObject extends SchemaObjectBase {
         triggerSource = null;
         triggerCallback = null;
         invalidate();
-    }
-
-    @Override
-    public void checkRename() {
-        // nothing to do
     }
 
     /**
@@ -477,6 +522,7 @@ public class TriggerObject extends SchemaObjectBase {
 
     /**
      * Close the trigger.
+     * @throws SQLException on failure
      */
     public void close() throws SQLException {
         if (triggerCallback != null) {

@@ -1,5 +1,5 @@
 /*
- * Copyright 2004-2019 H2 Group. Multiple-Licensed under the MPL 2.0,
+ * Copyright 2004-2023 H2 Group. Multiple-Licensed under the MPL 2.0,
  * and the EPL 1.0 (https://h2database.com/html/license.html).
  * Initial Developer: H2 Group
  */
@@ -12,15 +12,21 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.Arrays;
 import java.util.HashSet;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicIntegerArray;
+
+import javax.script.ScriptEngineManager;
+
 import org.h2.api.ErrorCode;
 import org.h2.api.Trigger;
-import org.h2.engine.Session;
-import org.h2.jdbc.JdbcConnection;
+import org.h2.message.DbException;
 import org.h2.test.TestBase;
 import org.h2.test.TestDb;
 import org.h2.tools.TriggerAdapter;
+import org.h2.util.StringUtils;
 import org.h2.util.Task;
-import org.h2.value.ValueLong;
+import org.h2.value.ValueBigint;
 
 /**
  * Tests for trigger and constraints.
@@ -36,14 +42,14 @@ public class TestTriggersConstraints extends TestDb implements Trigger {
      * @param a ignored
      */
     public static void main(String... a) throws Exception {
-        TestBase.createCaller().init().test();
+        TestBase.createCaller().init().testFromMain();
     }
 
     @Override
     public void test() throws Exception {
         deleteDb("trigger");
+        testWrongDataType();
         testTriggerDeadlock();
-        testDeleteInTrigger();
         testTriggerAdapter();
         testTriggerSelectEachRow();
         testViewTrigger();
@@ -56,6 +62,7 @@ public class TestTriggersConstraints extends TestDb implements Trigger {
         testConstraints();
         testCheckConstraintErrorMessage();
         testMultiPartForeignKeys();
+        testConcurrent();
         deleteDb("trigger");
     }
 
@@ -70,62 +77,121 @@ public class TestTriggersConstraints extends TestDb implements Trigger {
         }
     }
 
-    private void testTriggerDeadlock() throws Exception {
-        final Connection conn, conn2;
-        final Statement stat, stat2;
-        conn = getConnection("trigger");
-        conn2 = getConnection("trigger");
-        stat = conn.createStatement();
-        stat2 = conn2.createStatement();
-        stat.execute("create table test(id int) as select 1");
-        stat.execute("create table test2(id int) as select 1");
-        stat.execute("create trigger test_u before update on test2 " +
-                "for each row call \"" + DeleteTrigger.class.getName() + "\"");
-        conn.setAutoCommit(false);
-        conn2.setAutoCommit(false);
-        stat2.execute("update test set id = 2");
-        Task task = new Task() {
-            @Override
-            public void call() throws Exception {
-                Thread.sleep(300);
-                stat2.execute("update test2 set id = 4");
-            }
-        };
-        task.execute();
-        Thread.sleep(100);
-        try {
-            stat.execute("update test2 set id = 3");
-            task.get();
-        } catch (SQLException e) {
-            int errorCode = e.getErrorCode();
-            assertTrue(String.valueOf(errorCode),
-                        ErrorCode.LOCK_TIMEOUT_1 == errorCode ||
-                        ErrorCode.DEADLOCK_1 == errorCode ||
-                        ErrorCode.COMMIT_ROLLBACK_NOT_ALLOWED == errorCode);
+    /**
+     * Trigger that sets value of the wrong data type.
+     */
+    public static class WrongTrigger implements Trigger {
+        @Override
+        public void fire(Connection conn, Object[] oldRow, Object[] newRow) throws SQLException {
+            newRow[1] = "Wrong value";
         }
-        conn2.rollback();
-        conn.rollback();
-        stat.execute("drop table test");
-        stat.execute("drop table test2");
-        conn.close();
-        conn2.close();
     }
 
-    private void testDeleteInTrigger() throws SQLException {
-        if (config.mvStore) {
-            return;
+    /**
+     * Trigger that sets value of the wrong data type.
+     */
+    public static class WrongTriggerAdapter extends TriggerAdapter {
+        @Override
+        public void fire(Connection conn, ResultSet oldRow, ResultSet newRow) throws SQLException {
+            newRow.updateString(2, "Wrong value");
         }
-        Connection conn;
-        Statement stat;
-        conn = getConnection("trigger");
-        stat = conn.createStatement();
-        stat.execute("create table test(id int) as select 1");
-        stat.execute("create trigger test_u before update on test " +
-                "for each row call \"" + DeleteTrigger.class.getName() + "\"");
-        // this used to throw a NullPointerException before we fixed it
-        stat.execute("update test set id = 2");
-        stat.execute("drop table test");
-        conn.close();
+    }
+
+    /**
+     * Trigger that sets null value.
+     */
+    public static class NullTrigger implements Trigger {
+        @Override
+        public void fire(Connection conn, Object[] oldRow, Object[] newRow) throws SQLException {
+            newRow[1] = null;
+        }
+    }
+
+    /**
+     * Trigger that sets null value.
+     */
+    public static class NullTriggerAdapter extends TriggerAdapter {
+        @Override
+        public void fire(Connection conn, ResultSet oldRow, ResultSet newRow) throws SQLException {
+            newRow.updateNull(2);
+        }
+    }
+
+    private void testWrongDataType() throws Exception {
+        try (Connection conn = getConnection("trigger")) {
+            Statement stat = conn.createStatement();
+            stat.executeUpdate("CREATE TABLE TEST(A INTEGER, B INTEGER NOT NULL)");
+            PreparedStatement prep = conn.prepareStatement("INSERT INTO TEST VALUES (1, 2)");
+
+            stat.executeUpdate("CREATE TRIGGER TEST_TRIGGER BEFORE INSERT ON TEST FOR EACH ROW CALL '"
+                    + WrongTrigger.class.getName() + '\'');
+            assertThrows(ErrorCode.DATA_CONVERSION_ERROR_1, prep).executeUpdate();
+            stat.executeUpdate("DROP TRIGGER TEST_TRIGGER");
+
+            stat.executeUpdate("CREATE TRIGGER TEST_TRIGGER BEFORE INSERT ON TEST FOR EACH ROW CALL '"
+                    + WrongTriggerAdapter.class.getName() + '\'');
+            assertThrows(ErrorCode.DATA_CONVERSION_ERROR_1, prep).executeUpdate();
+            stat.executeUpdate("DROP TRIGGER TEST_TRIGGER");
+
+            stat.executeUpdate("CREATE TRIGGER TEST_TRIGGER BEFORE INSERT ON TEST FOR EACH ROW CALL '"
+                    + NullTrigger.class.getName() + '\'');
+            assertThrows(ErrorCode.NULL_NOT_ALLOWED, prep).executeUpdate();
+            stat.executeUpdate("DROP TRIGGER TEST_TRIGGER");
+
+            stat.executeUpdate("CREATE TRIGGER TEST_TRIGGER BEFORE INSERT ON TEST FOR EACH ROW CALL '"
+                    + NullTriggerAdapter.class.getName() + '\'');
+            assertThrows(ErrorCode.NULL_NOT_ALLOWED, prep).executeUpdate();
+            stat.executeUpdate("DROP TRIGGER TEST_TRIGGER");
+
+            stat.executeUpdate("DROP TABLE TEST");
+        }
+    }
+
+    private void testTriggerDeadlock() throws Exception {
+        final CountDownLatch latch = new CountDownLatch(2);
+        try (Connection conn = getConnection("trigger")) {
+            Statement stat = conn.createStatement();
+            stat.execute("create table test(id int) as select 1");
+            stat.execute("create table test2(id int) as select 1");
+            stat.execute("create trigger test_u before update on test2 " +
+                    "for each row call \"" + DeleteTrigger.class.getName() + "\"");
+            conn.setAutoCommit(false);
+            stat.execute("update test set id = 2");
+            Task task = new Task() {
+                @Override
+                public void call() throws Exception {
+                    try (Connection conn2 = getConnection("trigger")) {
+                        conn2.setAutoCommit(false);
+                        try (Statement stat2 = conn2.createStatement()) {
+                            latch.countDown();
+                            latch.await();
+                            stat2.execute("update test2 set id = 4");
+                        }
+                        conn2.rollback();
+                    } catch (SQLException e) {
+                        int errorCode = e.getErrorCode();
+                        assertTrue(String.valueOf(errorCode),
+                                ErrorCode.LOCK_TIMEOUT_1 == errorCode ||
+                                ErrorCode.DEADLOCK_1 == errorCode);
+                    }
+                }
+            };
+            task.execute();
+            latch.countDown();
+            latch.await();
+            try {
+                stat.execute("update test2 set id = 3");
+            } catch (SQLException e) {
+                int errorCode = e.getErrorCode();
+                assertTrue(String.valueOf(errorCode),
+                        ErrorCode.LOCK_TIMEOUT_1 == errorCode ||
+                        ErrorCode.DEADLOCK_1 == errorCode);
+            }
+            task.get();
+            conn.rollback();
+            stat.execute("drop table test");
+            stat.execute("drop table test2");
+        }
     }
 
     private void testTriggerAdapter() throws SQLException {
@@ -168,7 +234,7 @@ public class TestTriggersConstraints extends TestDb implements Trigger {
         stat = conn.createStatement();
         stat.execute("drop table if exists test");
         stat.execute("create table test(id int)");
-        assertThrows(ErrorCode.TRIGGER_SELECT_AND_ROW_BASED_NOT_SUPPORTED, stat)
+        assertThrows(ErrorCode.INVALID_TRIGGER_FLAGS_1, stat)
                 .execute("create trigger test_insert before select on test " +
                     "for each row call \"" + TestTriggerAdapter.class.getName() + "\"");
         conn.close();
@@ -212,7 +278,7 @@ public class TestTriggersConstraints extends TestDb implements Trigger {
         conn = getConnection("trigger");
         stat = conn.createStatement();
         stat.execute("drop table if exists test");
-        stat.execute("create table test(id int identity)");
+        stat.execute("create table test(id int generated by default as identity)");
         stat.execute("create view test_view as select * from test");
         stat.execute("create trigger test_view_insert " +
                 "instead of insert on test_view for each row call \"" +
@@ -225,12 +291,12 @@ public class TestTriggersConstraints extends TestDb implements Trigger {
 
         PreparedStatement pstat;
         pstat = conn.prepareStatement(
-                "insert into test_view values()", Statement.RETURN_GENERATED_KEYS);
+                "insert into test_view values()", new int[] { 1 });
         int count = pstat.executeUpdate();
         assertEquals(1, count);
 
         ResultSet gkRs;
-        gkRs = stat.executeQuery("select scope_identity()");
+        gkRs = pstat.getGeneratedKeys();
 
         assertTrue(gkRs.next());
         assertEquals(1, gkRs.getInt(1));
@@ -317,16 +383,6 @@ public class TestTriggersConstraints extends TestDb implements Trigger {
             }
         }
 
-        @Override
-        public void close() {
-            // ignore
-        }
-
-        @Override
-        public void remove() {
-            // ignore
-        }
-
     }
 
     /**
@@ -351,21 +407,9 @@ public class TestTriggersConstraints extends TestDb implements Trigger {
                 prepInsert.execute();
                 ResultSet rs = prepInsert.getGeneratedKeys();
                 if (rs.next()) {
-                    JdbcConnection jconn = (JdbcConnection) conn;
-                    Session session = (Session) jconn.getSession();
-                    session.setLastTriggerIdentity(ValueLong.get(rs.getLong(1)));
+                    newRow[0] = ValueBigint.get(rs.getLong(1));
                 }
             }
-        }
-
-        @Override
-        public void close() {
-            // ignore
-        }
-
-        @Override
-        public void remove() {
-            // ignore
         }
 
     }
@@ -428,16 +472,6 @@ public class TestTriggersConstraints extends TestDb implements Trigger {
             prepMeta.execute();
         }
 
-        @Override
-        public void close() {
-            // ignore
-        }
-
-        @Override
-        public void remove() {
-            // ignore
-        }
-
     }
 
     /**
@@ -448,13 +482,7 @@ public class TestTriggersConstraints extends TestDb implements Trigger {
         @Override
         public void fire(Connection conn, Object[] oldRow, Object[] newRow)
                 throws SQLException {
-            conn.createStatement().execute("call seq.nextval");
-        }
-
-        @Override
-        public void init(Connection conn, String schemaName,
-                String triggerName, String tableName, boolean before, int type) {
-            // nothing to do
+            conn.createStatement().execute("call next value for seq");
         }
 
         @Override
@@ -480,12 +508,16 @@ public class TestTriggersConstraints extends TestDb implements Trigger {
     }
 
     private void testTriggerAsJavascript() throws SQLException {
+        ScriptEngineManager scriptEngineManager = new ScriptEngineManager();
+        if (scriptEngineManager.getEngineByName("javascript") == null) {
+            return;
+        }
         deleteDb("trigger");
         testTrigger("javascript");
     }
 
     private void testTrigger(final String sourceLang) throws SQLException {
-        final String callSeq = "call seq.nextval";
+        final String callSeq = "call next value for seq";
         Connection conn = getConnection("trigger");
         Statement stat = conn.createStatement();
         stat.execute("DROP TABLE IF EXISTS TEST");
@@ -505,7 +537,7 @@ public class TestTriggersConstraints extends TestDb implements Trigger {
             String triggerClassName = this.getClass().getName() + "."
                     + TestTriggerAlterTable.class.getSimpleName();
             final String body = "//javascript\n"
-                    + "new Packages." + triggerClassName + "();";
+                    + "new (Java.type(\"" + triggerClassName + "\"))();";
             stat.execute("create trigger test_upd before insert on test as $$"
                     + body + " $$");
         } else {
@@ -544,19 +576,19 @@ public class TestTriggersConstraints extends TestDb implements Trigger {
                 + "company_id int not null, "
                 + "foreign key(company_id) references companies(id))");
         stat.execute("create table connections (id identity, company_id int not null, "
-                + "first int not null, second int not null, "
+                + "first int not null, `second` int not null, "
                 + "foreign key (company_id) references companies(id), "
                 + "foreign key (first) references departments(id), "
-                + "foreign key (second) references departments(id), "
+                + "foreign key (`second`) references departments(id), "
                 + "check (select departments.company_id from departments, companies where "
-                + "       departments.id in (first, second)) = company_id)");
+                + "       departments.id in (first, `second`)) = company_id)");
         stat.execute("insert into companies(id) values(1)");
         stat.execute("insert into departments(id, company_id) "
                 + "values(10, 1)");
         stat.execute("insert into departments(id, company_id) "
                 + "values(20, 1)");
         assertThrows(ErrorCode.CHECK_CONSTRAINT_INVALID, stat)
-            .execute("insert into connections(id, company_id, first, second) "
+            .execute("insert into connections(id, company_id, first, `second`) "
                 + "values(100, 1, 10, 20)");
 
         stat.execute("drop table connections");
@@ -606,35 +638,35 @@ public class TestTriggersConstraints extends TestDb implements Trigger {
         // [FOR EACH ROW] [QUEUE n] [NOWAIT] CALL triggeredClass
         stat.execute("CREATE TRIGGER IF NOT EXISTS INS_BEFORE " +
                 "BEFORE INSERT ON TEST " +
-                "FOR EACH ROW NOWAIT CALL \"" + getClass().getName() + "\"");
+                "FOR EACH ROW NOWAIT CALL '" + getClass().getName() + '\'');
         stat.execute("CREATE TRIGGER IF NOT EXISTS INS_BEFORE " +
                 "BEFORE INSERT ON TEST " +
-                "FOR EACH ROW NOWAIT CALL \"" + getClass().getName() + "\"");
+                "FOR EACH ROW NOWAIT CALL '" + getClass().getName() + '\'');
         stat.execute("CREATE TRIGGER INS_AFTER " + "" +
                 "AFTER INSERT ON TEST " +
-                "FOR EACH ROW NOWAIT CALL \"" + getClass().getName() + "\"");
+                "FOR EACH ROW NOWAIT CALL '" + getClass().getName() + '\'');
         stat.execute("CREATE TRIGGER UPD_BEFORE " +
                 "BEFORE UPDATE ON TEST " +
-                "FOR EACH ROW NOWAIT CALL \"" + getClass().getName() + "\"");
+                "FOR EACH ROW NOWAIT CALL '" + getClass().getName() + '\'');
         stat.execute("CREATE TRIGGER INS_AFTER_ROLLBACK " +
                 "AFTER INSERT, ROLLBACK ON TEST " +
-                "FOR EACH ROW NOWAIT CALL \"" + getClass().getName() + "\"");
+                "FOR EACH ROW NOWAIT CALL '" + getClass().getName() + '\'');
         stat.execute("INSERT INTO TEST VALUES(1, 'Hello')");
         ResultSet rs;
         rs = stat.executeQuery("SCRIPT");
         checkRows(rs, new String[] {
                 "CREATE FORCE TRIGGER \"PUBLIC\".\"INS_BEFORE\" " +
                     "BEFORE INSERT ON \"PUBLIC\".\"TEST\" " +
-                    "FOR EACH ROW NOWAIT CALL \"" + getClass().getName() + "\";",
+                    "FOR EACH ROW NOWAIT CALL '" + getClass().getName() + "';",
                 "CREATE FORCE TRIGGER \"PUBLIC\".\"INS_AFTER\" " +
                     "AFTER INSERT ON \"PUBLIC\".\"TEST\" " +
-                    "FOR EACH ROW NOWAIT CALL \"" + getClass().getName() + "\";",
+                    "FOR EACH ROW NOWAIT CALL '" + getClass().getName() + "';",
                 "CREATE FORCE TRIGGER \"PUBLIC\".\"UPD_BEFORE\" " +
                     "BEFORE UPDATE ON \"PUBLIC\".\"TEST\" " +
-                    "FOR EACH ROW NOWAIT CALL \"" + getClass().getName() + "\";",
+                    "FOR EACH ROW NOWAIT CALL '" + getClass().getName() + "';",
                 "CREATE FORCE TRIGGER \"PUBLIC\".\"INS_AFTER_ROLLBACK\" " +
                     "AFTER INSERT, ROLLBACK ON \"PUBLIC\".\"TEST\" " +
-                    "FOR EACH ROW NOWAIT CALL \"" + getClass().getName() + "\";",
+                    "FOR EACH ROW NOWAIT CALL '" + getClass().getName() + "';",
                         });
         while (rs.next()) {
             String sql = rs.getString(1);
@@ -679,6 +711,66 @@ public class TestTriggersConstraints extends TestDb implements Trigger {
         if (set.size() > 0) {
             fail("set should be empty: " + set);
         }
+    }
+
+    private void testConcurrent() throws Exception {
+        deleteDb("trigger");
+        Connection conn = getConnection("trigger");
+        Statement stat = conn.createStatement();
+        stat.execute("CREATE TABLE TEST(A INT)");
+        stat.execute("CREATE TRIGGER TEST_BEFORE BEFORE INSERT, UPDATE ON TEST FOR EACH ROW CALL " +
+                StringUtils.quoteStringSQL(ConcurrentTrigger.class.getName()));
+        Thread[] threads = new Thread[ConcurrentTrigger.N_T];
+        AtomicInteger a = new AtomicInteger();
+        for (int i = 0; i < ConcurrentTrigger.N_T; i++) {
+            Thread thread = new Thread() {
+                @Override
+                public void run() {
+                    try (Connection conn = getConnection("trigger")) {
+                        PreparedStatement prep = conn.prepareStatement("INSERT INTO TEST(A) VALUES ?");
+                        for (int j = 0; j < ConcurrentTrigger.N_R; j++) {
+                            prep.setInt(1, a.getAndIncrement());
+                            prep.executeUpdate();
+                        }
+                    } catch (SQLException e) {
+                        throw DbException.convert(e);
+                    }
+                }
+            };
+            threads[i] = thread;
+        }
+        synchronized (TestTriggersConstraints.class) {
+            AtomicIntegerArray array = ConcurrentTrigger.array;
+            int l = array.length();
+            for (int i = 0; i < l; i++) {
+                array.set(i, 0);
+            }
+            for (Thread thread : threads) {
+                thread.start();
+            }
+            for (Thread thread : threads) {
+                thread.join();
+            }
+            for (int i = 0; i < l; i++) {
+                assertEquals(1, array.get(i));
+            }
+        }
+        conn.close();
+    }
+
+    public static final class ConcurrentTrigger extends TriggerAdapter {
+
+        static final int N_T = 4;
+
+        static final int N_R = 250;
+
+        static final AtomicIntegerArray array = new AtomicIntegerArray(N_T * N_R);
+
+        @Override
+        public void fire(Connection conn, ResultSet oldRow, ResultSet newRow) throws SQLException {
+            array.set(newRow.getInt(1), 1);
+        }
+
     }
 
     @Override

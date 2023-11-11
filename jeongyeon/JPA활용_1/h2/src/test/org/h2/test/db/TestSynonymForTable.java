@@ -1,5 +1,5 @@
 /*
- * Copyright 2004-2019 H2 Group. Multiple-Licensed under the MPL 2.0,
+ * Copyright 2004-2023 H2 Group. Multiple-Licensed under the MPL 2.0,
  * and the EPL 1.0 (https://h2database.com/html/license.html).
  * Initial Developer: H2 Group
  */
@@ -26,7 +26,7 @@ public class TestSynonymForTable extends TestDb {
      * @param a ignored
      */
     public static void main(String... a) throws Exception {
-        TestBase.createCaller().init().test();
+        TestBase.createCaller().init().testFromMain();
     }
 
     @Override
@@ -71,7 +71,7 @@ public class TestSynonymForTable extends TestDb {
         stat.execute("CREATE OR REPLACE SYNONYM testsynonym FOR s1.backingtable");
         stat.execute("DROP SCHEMA s1 CASCADE");
 
-        assertThrows(ErrorCode.TABLE_OR_VIEW_NOT_FOUND_1, stat).execute("SELECT id FROM testsynonym");
+        assertThrows(ErrorCode.TABLE_OR_VIEW_NOT_FOUND_DATABASE_EMPTY_1, stat).execute("SELECT id FROM testsynonym");
         conn.close();
     }
 
@@ -82,7 +82,7 @@ public class TestSynonymForTable extends TestDb {
         stat.execute("DROP TABLE backingtable");
 
         // Backing table does not exist anymore.
-        assertThrows(ErrorCode.TABLE_OR_VIEW_NOT_FOUND_1, stat).execute("SELECT id FROM testsynonym");
+        assertThrows(ErrorCode.TABLE_OR_VIEW_NOT_FOUND_DATABASE_EMPTY_1, stat).execute("SELECT id FROM testsynonym");
 
         // Synonym should be dropped as well
         ResultSet synonyms = conn.createStatement().executeQuery(
@@ -185,8 +185,7 @@ public class TestSynonymForTable extends TestDb {
         assertEquals("TESTSYNONYM", synonyms.getString("SYNONYM_NAME"));
         assertEquals("BACKINGTABLE", synonyms.getString("SYNONYM_FOR"));
         assertEquals("VALID", synonyms.getString("STATUS"));
-        assertEquals("", synonyms.getString("REMARKS"));
-        assertNotNull(synonyms.getString("ID"));
+        assertNull(synonyms.getString("REMARKS"));
         assertFalse(synonyms.next());
         conn.close();
     }

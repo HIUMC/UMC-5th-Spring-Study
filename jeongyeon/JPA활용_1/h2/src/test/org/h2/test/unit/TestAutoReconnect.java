@@ -1,5 +1,5 @@
 /*
- * Copyright 2004-2019 H2 Group. Multiple-Licensed under the MPL 2.0,
+ * Copyright 2004-2023 H2 Group. Multiple-Licensed under the MPL 2.0,
  * and the EPL 1.0 (https://h2database.com/html/license.html).
  * Initial Developer: H2 Group
  */
@@ -33,7 +33,7 @@ public class TestAutoReconnect extends TestDb {
      * @param a ignored
      */
     public static void main(String... a) throws Exception {
-        TestBase.createCaller().init().test();
+        TestBase.createCaller().init().testFromMain();
     }
 
     private void restart() throws SQLException, InterruptedException {
@@ -63,26 +63,23 @@ public class TestAutoReconnect extends TestDb {
 
     private void testWrongUrl() throws Exception {
         deleteDb(getTestName());
-        Server tcp = Server.createTcpServer().start();
+        Server tcp = null;
         try {
-            conn = getConnection("jdbc:h2:" + getBaseDir() +
-                    "/" + getTestName() + ";AUTO_SERVER=TRUE");
-            assertThrows(ErrorCode.DATABASE_ALREADY_OPEN_1, this).
-                    getConnection("jdbc:h2:" + getBaseDir() +
-                            "/" + getTestName() + ";OPEN_NEW=TRUE");
-            assertThrows(ErrorCode.DATABASE_ALREADY_OPEN_1, this).
-                    getConnection("jdbc:h2:" + getBaseDir() +
-                            "/" + getTestName() + ";OPEN_NEW=TRUE");
+            tcp = Server.createTcpServer().start();
+            conn = getConnection("jdbc:h2:" + getBaseDir() + '/' + getTestName() + ";AUTO_SERVER=TRUE");
+            assertThrows(ErrorCode.DATABASE_ALREADY_OPEN_1,
+                    () -> getConnection("jdbc:h2:" + getBaseDir() + '/' + getTestName() + ";OPEN_NEW=TRUE"));
+            assertThrows(ErrorCode.DATABASE_ALREADY_OPEN_1,
+                    () -> getConnection("jdbc:h2:" + getBaseDir() + '/' + getTestName() + ";OPEN_NEW=TRUE"));
             conn.close();
 
-            conn = getConnection("jdbc:h2:tcp://localhost:" + tcp.getPort() +
-                                        "/" + getBaseDir() + "/" + getTestName());
-            assertThrows(ErrorCode.DATABASE_ALREADY_OPEN_1, this).
-                    getConnection("jdbc:h2:" + getBaseDir() +
-                            "/" + getTestName() + ";AUTO_SERVER=TRUE;OPEN_NEW=TRUE");
+            conn = getConnection("jdbc:h2:tcp://localhost:" + tcp.getPort() + '/' + getBaseDir() + '/' //
+                    + getTestName());
+            assertThrows(ErrorCode.DATABASE_ALREADY_OPEN_1, () -> getConnection(
+                    "jdbc:h2:" + getBaseDir() + '/' + getTestName() + ";AUTO_SERVER=TRUE;OPEN_NEW=TRUE"));
             conn.close();
         } finally {
-            tcp.stop();
+            if (tcp != null) tcp.stop();
         }
     }
 
@@ -114,7 +111,7 @@ public class TestAutoReconnect extends TestDb {
         stat.execute("create table test(id identity, name varchar)");
         restart();
         PreparedStatement prep = conn.prepareStatement(
-                "insert into test values(null, ?)");
+                "insert into test(name) values(?)");
         restart();
         prep.setString(1, "Hello");
         restart();
@@ -166,6 +163,7 @@ public class TestAutoReconnect extends TestDb {
                 if (i < 10) {
                     throw e;
                 }
+                break;
             }
         }
         restart();
@@ -187,32 +185,6 @@ public class TestAutoReconnect extends TestDb {
     /**
      * A database event listener used in this test.
      */
-    public static final class MyDatabaseEventListener implements
-            DatabaseEventListener {
-
-        @Override
-        public void closingDatabase() {
-            // ignore
-        }
-
-        @Override
-        public void exceptionThrown(SQLException e, String sql) {
-            // ignore
-        }
-
-        @Override
-        public void init(String u) {
-            // ignore
-        }
-
-        @Override
-        public void opened() {
-            // ignore
-        }
-
-        @Override
-        public void setProgress(int state, String name, int x, int max) {
-            // ignore
-        }
+    public static final class MyDatabaseEventListener implements DatabaseEventListener {
     }
 }

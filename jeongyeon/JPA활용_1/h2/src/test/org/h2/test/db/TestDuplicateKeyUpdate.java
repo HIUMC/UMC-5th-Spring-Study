@@ -1,5 +1,5 @@
 /*
- * Copyright 2004-2019 H2 Group. Multiple-Licensed under the MPL 2.0,
+ * Copyright 2004-2023 H2 Group. Multiple-Licensed under the MPL 2.0,
  * and the EPL 1.0 (https://h2database.com/html/license.html).
  * Initial Developer: H2 Group
  */
@@ -26,7 +26,7 @@ public class TestDuplicateKeyUpdate extends TestDb {
      * @param a ignored
      */
     public static void main(String... a) throws Exception {
-        TestBase.createCaller().init().test();
+        TestBase.createCaller().init().testFromMain();
     }
 
     @Override
@@ -193,12 +193,12 @@ public class TestDuplicateKeyUpdate extends TestDb {
             throws SQLException {
         Statement stat = conn.createStatement();
         stat.execute("create table test " +
-                "(key varchar(1) primary key, count int not null)");
+                "(id varchar(1) primary key, count int not null)");
 
         // Insert multiple values as a batch
         for (int i = 0; i <= 2; ++i) {
             PreparedStatement prep = conn.prepareStatement(
-                    "insert into test(key, count) values(?, ?) " +
+                    "insert into test(id, count) values(?, ?) " +
                     "on duplicate key update count = count + 1");
             prep.setString(1, "a");
             prep.setInt(2, 1);
@@ -214,7 +214,7 @@ public class TestDuplicateKeyUpdate extends TestDb {
 
         // Check result
         ResultSet rs = stat.executeQuery(
-                "select count from test where key = 'a'");
+                "select count from test where id = 'a'");
         rs.next();
         assertEquals(3, rs.getInt(1));
 
@@ -225,12 +225,12 @@ public class TestDuplicateKeyUpdate extends TestDb {
             throws SQLException {
         Statement stat = conn.createStatement();
         stat.execute("create table test" +
-                "(key varchar(1) primary key, count int not null)");
+                "(id varchar(1) primary key, count int not null)");
 
         // Insert multiple values in single insert operation
         for (int i = 0; i <= 2; ++i) {
             PreparedStatement prep = conn.prepareStatement(
-                    "insert into test(key, count) values(?, ?), (?, ?), (?, ?) " +
+                    "insert into test(id, count) values(?, ?), (?, ?), (?, ?) " +
                     "on duplicate key update count = count + 1");
             prep.setString(1, "a");
             prep.setInt(2, 1);
@@ -243,15 +243,14 @@ public class TestDuplicateKeyUpdate extends TestDb {
         conn.commit();
 
         // Check result
-        ResultSet rs = stat.executeQuery("select count from test where key = 'a'");
+        ResultSet rs = stat.executeQuery("select count from test where id = 'a'");
         rs.next();
         assertEquals(3, rs.getInt(1));
 
         stat.execute("drop table test");
     }
 
-    private void testPrimaryKeyAndUniqueKey(Connection conn) throws SQLException
-    {
+    private void testPrimaryKeyAndUniqueKey(Connection conn) throws SQLException {
         Statement stat = conn.createStatement();
         stat.execute("CREATE TABLE test (id INT, dup INT, " +
                 "counter INT, PRIMARY KEY(id), UNIQUE(dup))");

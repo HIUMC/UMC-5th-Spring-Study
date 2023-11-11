@@ -1,5 +1,5 @@
 /*
- * Copyright 2004-2019 H2 Group. Multiple-Licensed under the MPL 2.0,
+ * Copyright 2004-2023 H2 Group. Multiple-Licensed under the MPL 2.0,
  * and the EPL 1.0 (https://h2database.com/html/license.html).
  * Initial Developer: H2 Group
  */
@@ -17,6 +17,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 import org.h2.engine.Constants;
+import org.h2.jdbc.JdbcException;
 import org.h2.util.StringUtils;
 
 /**
@@ -108,6 +109,12 @@ public final class DataUtils {
     public static final int ERROR_TRANSACTIONS_DEADLOCK = 105;
 
     /**
+     * The transaction store can not be initialized because data type
+     * is not found in type registry.
+     */
+    public static final int ERROR_UNKNOWN_DATA_TYPE = 106;
+
+    /**
      * The type for leaf page.
      */
     public static final int PAGE_TYPE_LEAF = 0;
@@ -128,16 +135,6 @@ public final class DataUtils {
     public static final int PAGE_COMPRESSED_HIGH = 2 + 4;
 
     /**
-     * The maximum length of a variable size int.
-     */
-    public static final int MAX_VAR_INT_LEN = 5;
-
-    /**
-     * The maximum length of a variable size long.
-     */
-    public static final int MAX_VAR_LONG_LEN = 10;
-
-    /**
      * The maximum integer that needs less space when using variable size
      * encoding (only 3 bytes instead of 4).
      */
@@ -154,7 +151,7 @@ public final class DataUtils {
      */
     public static final int PAGE_LARGE = 2 * 1024 * 1024;
 
-    // The following are key prefixes used in meta map
+    // The following are key prefixes used in layout map
 
     /**
      * The prefix for chunks ("chunk."). This, plus the chunk id (hex encoded)
@@ -163,8 +160,16 @@ public final class DataUtils {
     public static final String META_CHUNK = "chunk.";
 
     /**
+     * The prefix for root positions of maps ("root."). This, plus the map id
+     * (hex encoded) is the key, and the position (hex encoded) is the value.
+     */
+    public static final String META_ROOT = "root.";
+
+    // The following are key prefixes used in meta map
+
+    /**
      * The prefix for names ("name."). This, plus the name of the map, is the
-     * key, and the map id (hey encoded) is the value.
+     * key, and the map id (hex encoded) is the value.
      */
     public static final String META_NAME = "name.";
 
@@ -173,12 +178,6 @@ public final class DataUtils {
      * key, and the serialized in the map metadata is the value.
      */
     public static final String META_MAP = "map.";
-
-    /**
-     * The prefix for root positions of maps ("root."). This, plus the map id
-     * (hex encoded) is the key, and the position (hex encoded) is the value.
-     */
-    public static final String META_ROOT = "root.";
 
     /**
      * Get the length of the variable size int.
@@ -317,7 +316,7 @@ public final class DataUtils {
                 buff.put((byte) c);
             } else if (c >= 0x800) {
                 buff.put((byte) (0xe0 | (c >> 12)));
-                buff.put((byte) (((c >> 6) & 0x3f)));
+                buff.put((byte) ((c >> 6) & 0x3f));
                 buff.put((byte) (c & 0x3f));
             } else {
                 buff.put((byte) (0xc0 | (c >> 6)));
@@ -434,7 +433,7 @@ public final class DataUtils {
      * @param file the file channel
      * @param pos the absolute position within the file
      * @param dst the byte buffer
-     * @throws IllegalStateException if some data could not be read
+     * @throws MVStoreException if some data could not be read
      */
     public static void readFully(FileChannel file, long pos, ByteBuffer dst) {
         try {
@@ -453,7 +452,7 @@ public final class DataUtils {
             } catch (IOException e2) {
                 size = -1;
             }
-            throw newIllegalStateException(
+            throw newMVStoreException(
                     ERROR_READING_FAILED,
                     "Reading from file {0} failed at {1} (length {2}), " +
                     "read {3}, remaining {4}",
@@ -476,7 +475,7 @@ public final class DataUtils {
                 off += len;
             } while (src.remaining() > 0);
         } catch (IOException e) {
-            throw newIllegalStateException(
+            throw newMVStoreException(
                     ERROR_WRITING_FAILED,
                     "Writing to {0} failed; length {1} at {2}",
                     file, src.remaining(), pos, e);
@@ -490,6 +489,7 @@ public final class DataUtils {
      * @return the length code
      */
     public static int encodeLength(int len) {
+        assert len >= 0;
         if (len <= 32) {
             return 0;
         }
@@ -527,6 +527,16 @@ public final class DataUtils {
     }
 
     /**
+     * Get the map id from the chunk's table of content element.
+     *
+     * @param tocElement packed table of content element
+     * @return the map id
+     */
+    public static int getPageMapId(long tocElement) {
+        return (int) (tocElement >>> 38);
+    }
+
+    /**
      * Get the maximum length for the given page position.
      *
      * @param pos the position
@@ -554,11 +564,11 @@ public final class DataUtils {
     /**
      * Get the offset from the position.
      *
-     * @param pos the position
+     * @param tocElement packed table of content element
      * @return the offset
      */
-    public static int getPageOffset(long pos) {
-        return (int) (pos >> 6);
+    public static int getPageOffset(long tocElement) {
+        return (int) (tocElement >> 6);
     }
 
     /**
@@ -603,7 +613,7 @@ public final class DataUtils {
 
     /**
      * Get the position of this page. The following information is encoded in
-     * the position: the chunk id, the offset, the maximum length, and the type
+     * the position: the chunk id, the page sequential number, the maximum length, and the type
      * (node or leaf).
      *
      * @param chunkId the chunk id
@@ -612,11 +622,46 @@ public final class DataUtils {
      * @param type the page type (1 for node, 0 for leaf)
      * @return the position
      */
-    public static long getPagePos(int chunkId, int offset,
-            int length, int type) {
+    public static long composePagePos(int chunkId, int offset, int length, int type) {
+        assert offset >= 0;
+        assert type == DataUtils.PAGE_TYPE_LEAF || type == DataUtils.PAGE_TYPE_NODE;
+
         long pos = (long) chunkId << 38;
         pos |= (long) offset << 6;
-        pos |= encodeLength(length) << 1;
+        pos |= (long) encodeLength(length) << 1;
+        pos |= type;
+        return pos;
+    }
+
+    /**
+     * Convert tocElement into pagePos by replacing mapId with chunkId.
+     *
+     * @param chunkId the chunk id
+     * @param tocElement the element
+     * @return the page position
+     */
+    public static long composePagePos(int chunkId, long tocElement) {
+        return (tocElement & 0x3FFFFFFFFFL) | ((long) chunkId << 38);
+    }
+
+    /**
+     * Create table of content element. The following information is encoded in it:
+     * the map id, the page offset, the maximum length, and the type
+     * (node or leaf).
+     *
+     * @param mapId the chunk id
+     * @param offset the offset
+     * @param length the length
+     * @param type the page type (1 for node, 0 for leaf)
+     * @return the position
+     */
+    public static long composeTocElement(int mapId, int offset, int length, int type) {
+        assert mapId >= 0;
+        assert offset >= 0;
+        assert type == DataUtils.PAGE_TYPE_LEAF || type == DataUtils.PAGE_TYPE_NODE;
+        long pos = (long) mapId << 38;
+        pos |= (long) offset << 6;
+        pos |= (long) encodeLength(length) << 1;
         pos |= type;
         return pos;
     }
@@ -731,7 +776,7 @@ public final class DataUtils {
                     c = s.charAt(i++);
                     if (c == '\\') {
                         if (i == size) {
-                            throw newIllegalStateException(ERROR_FILE_CORRUPT, "Not a map: {0}", s);
+                            throw newMVStoreException(ERROR_FILE_CORRUPT, "Not a map: {0}", s);
                         }
                         c = s.charAt(i++);
                     } else if (c == '\"') {
@@ -751,7 +796,7 @@ public final class DataUtils {
      *
      * @param s the list
      * @return the map
-     * @throws IllegalStateException if parsing failed
+     * @throws MVStoreException if parsing failed
      */
     public static HashMap<String, String> parseMap(String s) {
         HashMap<String, String> map = new HashMap<>();
@@ -760,7 +805,7 @@ public final class DataUtils {
             int startKey = i;
             i = s.indexOf(':', i);
             if (i < 0) {
-                throw newIllegalStateException(ERROR_FILE_CORRUPT, "Not a map: {0}", s);
+                throw newMVStoreException(ERROR_FILE_CORRUPT, "Not a map: {0}", s);
             }
             String key = s.substring(startKey, i++);
             i = parseMapValue(buff, s, i, size);
@@ -818,7 +863,7 @@ public final class DataUtils {
      *
      * @param s the list
      * @return value of name item, or {@code null}
-     * @throws IllegalStateException if parsing failed
+     * @throws MVStoreException if parsing failed
      */
     public static String getMapName(String s) {
         return getFromMap(s, "name");
@@ -830,7 +875,7 @@ public final class DataUtils {
      * @param s the list
      * @param key the name of the key
      * @return value of the specified item, or {@code null}
-     * @throws IllegalStateException if parsing failed
+     * @throws MVStoreException if parsing failed
      */
     public static String getFromMap(String s, String key) {
         int keyLength = key.length();
@@ -838,7 +883,7 @@ public final class DataUtils {
             int startKey = i;
             i = s.indexOf(':', i);
             if (i < 0) {
-                throw newIllegalStateException(ERROR_FILE_CORRUPT, "Not a map: {0}", s);
+                throw newMVStoreException(ERROR_FILE_CORRUPT, "Not a map: {0}", s);
             }
             if (i++ - startKey == keyLength && s.regionMatches(startKey, key, 0, keyLength)) {
                 StringBuilder buff = new StringBuilder();
@@ -854,7 +899,7 @@ public final class DataUtils {
                             c = s.charAt(i++);
                             if (c == '\\') {
                                 if (i++ == size) {
-                                    throw newIllegalStateException(ERROR_FILE_CORRUPT, "Not a map: {0}", s);
+                                    throw newMVStoreException(ERROR_FILE_CORRUPT, "Not a map: {0}", s);
                                 }
                             } else if (c == '\"') {
                                 break;
@@ -938,16 +983,16 @@ public final class DataUtils {
     }
 
     /**
-     * Create a new IllegalStateException.
+     * Create a new MVStoreException.
      *
      * @param errorCode the error code
      * @param message the message
      * @param arguments the arguments
      * @return the exception
      */
-    public static IllegalStateException newIllegalStateException(
+    public static MVStoreException newMVStoreException(
             int errorCode, String message, Object... arguments) {
-        return initCause(new IllegalStateException(
+        return initCause(new MVStoreException(errorCode,
                 formatMessage(errorCode, message, arguments)),
                 arguments);
     }
@@ -992,33 +1037,13 @@ public final class DataUtils {
     }
 
     /**
-     * Get the error code from an exception message.
-     *
-     * @param m the message
-     * @return the error code, or 0 if none
-     */
-    public static int getErrorCode(String m) {
-        if (m != null && m.endsWith("]")) {
-            int dash = m.lastIndexOf('/');
-            if (dash >= 0) {
-                try {
-                    return StringUtils.parseUInt31(m, dash + 1, m.length() - 1);
-                } catch (NumberFormatException e) {
-                    // no error code
-                }
-            }
-        }
-        return 0;
-    }
-
-    /**
      * Read a hex long value from a map.
      *
      * @param map the map
      * @param key the key
      * @param defaultValue if the value is null
      * @return the parsed value
-     * @throws IllegalStateException if parsing fails
+     * @throws MVStoreException if parsing fails
      */
     public static long readHexLong(Map<String, ?> map, String key, long defaultValue) {
         Object v = map.get(key);
@@ -1030,7 +1055,7 @@ public final class DataUtils {
         try {
             return parseHexLong((String) v);
         } catch (NumberFormatException e) {
-            throw newIllegalStateException(ERROR_FILE_CORRUPT,
+            throw newMVStoreException(ERROR_FILE_CORRUPT,
                     "Error parsing the value {0}", v, e);
         }
     }
@@ -1040,7 +1065,7 @@ public final class DataUtils {
      *
      * @param x the string
      * @return the parsed value
-     * @throws IllegalStateException if parsing fails
+     * @throws MVStoreException if parsing fails
      */
     public static long parseHexLong(String x) {
         try {
@@ -1052,7 +1077,7 @@ public final class DataUtils {
             }
             return Long.parseLong(x, 16);
         } catch (NumberFormatException e) {
-            throw newIllegalStateException(ERROR_FILE_CORRUPT,
+            throw newMVStoreException(ERROR_FILE_CORRUPT,
                     "Error parsing the value {0}", x, e);
         }
     }
@@ -1062,7 +1087,7 @@ public final class DataUtils {
      *
      * @param x the string
      * @return the parsed value
-     * @throws IllegalStateException if parsing fails
+     * @throws MVStoreException if parsing fails
      */
     public static int parseHexInt(String x) {
         try {
@@ -1070,7 +1095,7 @@ public final class DataUtils {
             // in Java 8, we can use Integer.parseLong(x, 16);
             return (int) Long.parseLong(x, 16);
         } catch (NumberFormatException e) {
-            throw newIllegalStateException(ERROR_FILE_CORRUPT,
+            throw newMVStoreException(ERROR_FILE_CORRUPT,
                     "Error parsing the value {0}", x, e);
         }
     }
@@ -1082,9 +1107,9 @@ public final class DataUtils {
      * @param key the key
      * @param defaultValue if the value is null
      * @return the parsed value
-     * @throws IllegalStateException if parsing fails
+     * @throws MVStoreException if parsing fails
      */
-    public static int readHexInt(Map<String, ?> map, String key, int defaultValue) {
+    static int readHexInt(Map<String, ?> map, String key, int defaultValue) {
         Object v = map.get(key);
         if (v == null) {
             return defaultValue;
@@ -1095,9 +1120,24 @@ public final class DataUtils {
             // support unsigned hex value
             return (int) Long.parseLong((String) v, 16);
         } catch (NumberFormatException e) {
-            throw newIllegalStateException(ERROR_FILE_CORRUPT,
+            throw newMVStoreException(ERROR_FILE_CORRUPT,
                     "Error parsing the value {0}", v, e);
         }
+    }
+
+    /**
+     * Parse the hex-encoded bytes of an entry in the map.
+     *
+     * @param map the map
+     * @param key the key
+     * @return the byte array, or null if not in the map
+     */
+    static byte[] parseHexBytes(Map<String, ?> map, String key) {
+        Object v = map.get(key);
+        if (v == null) {
+            return null;
+        }
+        return StringUtils.convertHexToBytes((String)v);
     }
 
     /**
@@ -1108,7 +1148,7 @@ public final class DataUtils {
      * @param defaultValue the default
      * @return the configured value or default
      */
-    public static int getConfigParam(Map<String, ?> config, String key, int defaultValue) {
+    static int getConfigParam(Map<String, ?> config, String key, int defaultValue) {
         Object o = config.get(key);
         if (o instanceof Number) {
             return ((Number) o).intValue();
@@ -1122,4 +1162,21 @@ public final class DataUtils {
         return defaultValue;
     }
 
+    /**
+     * Convert an exception to an IO exception.
+     *
+     * @param e the root cause
+     * @return the IO exception
+     */
+    public static IOException convertToIOException(Throwable e) {
+        if (e instanceof IOException) {
+            return (IOException) e;
+        }
+        if (e instanceof JdbcException) {
+            if (e.getCause() != null) {
+                e = e.getCause();
+            }
+        }
+        return new IOException(e.toString(), e);
+    }
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright 2004-2019 H2 Group. Multiple-Licensed under the MPL 2.0,
+ * Copyright 2004-2023 H2 Group. Multiple-Licensed under the MPL 2.0,
  * and the EPL 1.0 (https://h2database.com/html/license.html).
  * Initial Developer: H2 Group
  */
@@ -25,7 +25,7 @@ public class TestQueryCache extends TestDb {
      * @param a ignored
      */
     public static void main(String... a) throws Exception {
-        TestBase.createCaller().init().test();
+        TestBase.createCaller().init().testFromMain();
     }
 
     @Override
@@ -96,14 +96,14 @@ public class TestQueryCache extends TestDb {
 
     private void testClearingCacheWithTableStructureChanges() throws Exception {
         try (Connection conn = getConnection("queryCache;QUERY_CACHE_SIZE=10")) {
-            assertThrows(ErrorCode.TABLE_OR_VIEW_NOT_FOUND_1, conn).
+            assertThrows(ErrorCode.TABLE_OR_VIEW_NOT_FOUND_DATABASE_EMPTY_1, conn).
                     prepareStatement("SELECT * FROM TEST");
             Statement stat = conn.createStatement();
             stat.executeUpdate("CREATE TABLE TEST(col1 bigint, col2 varchar(255))");
             PreparedStatement prep = conn.prepareStatement("SELECT * FROM TEST");
             prep.close();
             stat.executeUpdate("DROP TABLE TEST");
-            assertThrows(ErrorCode.TABLE_OR_VIEW_NOT_FOUND_1, conn).
+            assertThrows(ErrorCode.TABLE_OR_VIEW_NOT_FOUND_DATABASE_EMPTY_1, conn).
                     prepareStatement("SELECT * FROM TEST");
         }
     }

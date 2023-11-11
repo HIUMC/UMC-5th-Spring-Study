@@ -1,5 +1,5 @@
 /*
- * Copyright 2004-2019 H2 Group. Multiple-Licensed under the MPL 2.0,
+ * Copyright 2004-2023 H2 Group. Multiple-Licensed under the MPL 2.0,
  * and the EPL 1.0 (https://h2database.com/html/license.html).
  * Initial Developer: H2 Group
  */
@@ -25,13 +25,14 @@ public class TriggerSample {
      * command line.
      *
      * @param args the command line parameters
+     * @throws Exception on failure
      */
     public static void main(String... args) throws Exception {
         Class.forName("org.h2.Driver");
         Connection conn = DriverManager.getConnection("jdbc:h2:mem:", "sa", "");
         Statement stat = conn.createStatement();
-        stat.execute("CREATE TABLE INVOICE(ID INT PRIMARY KEY, AMOUNT DECIMAL)");
-        stat.execute("CREATE TABLE INVOICE_SUM(AMOUNT DECIMAL)");
+        stat.execute("CREATE TABLE INVOICE(ID INT PRIMARY KEY, AMOUNT DECIMAL(10, 2))");
+        stat.execute("CREATE TABLE INVOICE_SUM(AMOUNT DECIMAL(10, 2))");
         stat.execute("INSERT INTO INVOICE_SUM VALUES(0.0)");
 
         stat.execute("CREATE TRIGGER INV_INS " +

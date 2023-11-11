@@ -1,5 +1,5 @@
 /*
- * Copyright 2004-2019 H2 Group. Multiple-Licensed under the MPL 2.0,
+ * Copyright 2004-2023 H2 Group. Multiple-Licensed under the MPL 2.0,
  * and the EPL 1.0 (https://h2database.com/html/license.html).
  * Initial Developer: H2 Group
  */
@@ -14,7 +14,7 @@ import org.h2.table.Table;
  * An access right. Rights are regular database objects, but have generated
  * names.
  */
-public class Right extends DbObjectBase {
+public final class Right extends DbObject {
 
     /**
      * The right bit mask that means: selecting from a table is allowed.
@@ -40,6 +40,12 @@ public class Right extends DbObjectBase {
      * The right bit mask that means: create/alter/drop schema is allowed.
      */
     public static final int ALTER_ANY_SCHEMA = 16;
+
+    /**
+     * The right bit mask that means: user is a schema owner. This mask isn't
+     * used in GRANT / REVOKE statements.
+     */
+    public static final int SCHEMA_OWNER = 32;
 
     /**
      * The right bit mask that means: select, insert, update, delete, and update
@@ -73,16 +79,14 @@ public class Right extends DbObjectBase {
         this.grantedRole = grantedRole;
     }
 
-    public Right(Database db, int id, RightOwner grantee, int grantedRight,
-            DbObject grantedObject) {
+    public Right(Database db, int id, RightOwner grantee, int grantedRight, DbObject grantedObject) {
         super(db, id, Integer.toString(id), Trace.USER);
         this.grantee = grantee;
         this.grantedRight = grantedRight;
         this.grantedObject = grantedObject;
     }
 
-    private static boolean appendRight(StringBuilder buff, int right, int mask,
-            String name, boolean comma) {
+    private static boolean appendRight(StringBuilder buff, int right, int mask, String name, boolean comma) {
         if ((right & mask) != 0) {
             if (comma) {
                 buff.append(", ");
@@ -102,9 +106,8 @@ public class Right extends DbObjectBase {
             comma = appendRight(buff, grantedRight, SELECT, "SELECT", comma);
             comma = appendRight(buff, grantedRight, DELETE, "DELETE", comma);
             comma = appendRight(buff, grantedRight, INSERT, "INSERT", comma);
-            comma = appendRight(buff, grantedRight, ALTER_ANY_SCHEMA,
-                    "ALTER ANY SCHEMA", comma);
-            appendRight(buff, grantedRight, UPDATE, "UPDATE", comma);
+            comma = appendRight(buff, grantedRight, UPDATE, "UPDATE", comma);
+            appendRight(buff, grantedRight, ALTER_ANY_SCHEMA, "ALTER ANY SCHEMA", comma);
         }
         return buff.toString();
     }
@@ -122,35 +125,30 @@ public class Right extends DbObjectBase {
     }
 
     @Override
-    public String getDropSQL() {
-        return null;
-    }
-
-    @Override
     public String getCreateSQLForCopy(Table table, String quotedName) {
         return getCreateSQLForCopy(table);
     }
 
     private String getCreateSQLForCopy(DbObject object) {
-        StringBuilder buff = new StringBuilder();
-        buff.append("GRANT ");
+        StringBuilder builder = new StringBuilder();
+        builder.append("GRANT ");
         if (grantedRole != null) {
-            grantedRole.getSQL(buff, true);
+            grantedRole.getSQL(builder, DEFAULT_SQL_FLAGS);
         } else {
-            buff.append(getRights());
+            builder.append(getRights());
             if (object != null) {
                 if (object instanceof Schema) {
-                    buff.append(" ON SCHEMA ");
-                    object.getSQL(buff, true);
+                    builder.append(" ON SCHEMA ");
+                    object.getSQL(builder, DEFAULT_SQL_FLAGS);
                 } else if (object instanceof Table) {
-                    buff.append(" ON ");
-                    object.getSQL(buff, true);
+                    builder.append(" ON ");
+                    object.getSQL(builder, DEFAULT_SQL_FLAGS);
                 }
             }
         }
-        buff.append(" TO ");
-        grantee.getSQL(buff, true);
-        return buff.toString();
+        builder.append(" TO ");
+        grantee.getSQL(builder, DEFAULT_SQL_FLAGS);
+        return builder.toString();
     }
 
     @Override
@@ -164,7 +162,7 @@ public class Right extends DbObjectBase {
     }
 
     @Override
-    public void removeChildrenAndResources(Session session) {
+    public void removeChildrenAndResources(SessionLocal session) {
         if (grantedRole != null) {
             grantee.revokeRole(grantedRole);
         } else {
@@ -179,7 +177,7 @@ public class Right extends DbObjectBase {
 
     @Override
     public void checkRename() {
-        DbException.throwInternalError();
+        throw DbException.getInternalError();
     }
 
     public void setRightMask(int rightMask) {

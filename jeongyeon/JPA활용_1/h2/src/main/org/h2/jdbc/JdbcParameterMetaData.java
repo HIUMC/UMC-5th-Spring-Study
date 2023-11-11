@@ -1,5 +1,5 @@
 /*
- * Copyright 2004-2019 H2 Group. Multiple-Licensed under the MPL 2.0,
+ * Copyright 2004-2023 H2 Group. Multiple-Licensed under the MPL 2.0,
  * and the EPL 1.0 (https://h2database.com/html/license.html).
  * Initial Developer: H2 Group
  */
@@ -17,12 +17,12 @@ import org.h2.util.MathUtils;
 import org.h2.value.DataType;
 import org.h2.value.TypeInfo;
 import org.h2.value.Value;
+import org.h2.value.ValueToObjectConverter;
 
 /**
  * Information about the parameters of a prepared statement.
  */
-public class JdbcParameterMetaData extends TraceObject implements
-        ParameterMetaData {
+public final class JdbcParameterMetaData extends TraceObject implements ParameterMetaData {
 
     private final JdbcPreparedStatement prep;
     private final int paramCount;
@@ -81,11 +81,11 @@ public class JdbcParameterMetaData extends TraceObject implements
     public int getParameterType(int param) throws SQLException {
         try {
             debugCodeCall("getParameterType", param);
-            int type = getParameter(param).getType().getValueType();
-            if (type == Value.UNKNOWN) {
-                type = Value.STRING;
+            TypeInfo type = getParameter(param).getType();
+            if (type.getValueType() == Value.UNKNOWN) {
+                type = TypeInfo.TYPE_VARCHAR;
             }
-            return DataType.getDataType(type).sqlType;
+            return DataType.convertTypeToSQLType(type);
         } catch (Exception e) {
             throw logAndConvert(e);
         }
@@ -175,9 +175,9 @@ public class JdbcParameterMetaData extends TraceObject implements
             debugCodeCall("getParameterClassName", param);
             int type = getParameter(param).getType().getValueType();
             if (type == Value.UNKNOWN) {
-                type = Value.STRING;
+                type = Value.VARCHAR;
             }
-            return DataType.getTypeClassName(type, false);
+            return ValueToObjectConverter.getDefaultClass(type, true).getName();
         } catch (Exception e) {
             throw logAndConvert(e);
         }
@@ -194,11 +194,11 @@ public class JdbcParameterMetaData extends TraceObject implements
     public String getParameterTypeName(int param) throws SQLException {
         try {
             debugCodeCall("getParameterTypeName", param);
-            int type = getParameter(param).getType().getValueType();
-            if (type == Value.UNKNOWN) {
-                type = Value.STRING;
+            TypeInfo type = getParameter(param).getType();
+            if (type.getValueType() == Value.UNKNOWN) {
+                type = TypeInfo.TYPE_VARCHAR;
             }
-            return DataType.getDataType(type).name;
+            return type.getDeclaredTypeName();
         } catch (Exception e) {
             throw logAndConvert(e);
         }

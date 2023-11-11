@@ -1,5 +1,5 @@
 /*
- * Copyright 2004-2019 H2 Group. Multiple-Licensed under the MPL 2.0,
+ * Copyright 2004-2023 H2 Group. Multiple-Licensed under the MPL 2.0,
  * and the EPL 1.0 (https://h2database.com/html/license.html).
  * Initial Developer: H2 Group
  */
@@ -9,6 +9,7 @@ import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.SQLException;
 import java.sql.Statement;
+import org.h2.api.ErrorCode;
 import org.h2.test.TestBase;
 import org.h2.test.TestDb;
 import org.h2.util.SortedProperties;
@@ -29,28 +30,30 @@ public class TestAutoServer extends TestDb {
      * @param a ignored
      */
     public static void main(String... a) throws Exception {
-        TestBase.createCaller().init().test();
+        TestBase.createCaller().init().testFromMain();
     }
 
     @Override
     public void test() throws Exception {
         testUnsupportedCombinations();
         testAutoServer(false);
+        testSocketReadTimeout(false);
         if (!config.big) {
             testAutoServer(true);
         }
         testLinkedLocalTablesWithAutoServerReconnect();
     }
 
-    private void testUnsupportedCombinations() throws SQLException {
+    private void testUnsupportedCombinations() {
         String[] urls = {
                 "jdbc:h2:" + getTestName() + ";file_lock=no;auto_server=true",
                 "jdbc:h2:" + getTestName() + ";file_lock=serialized;auto_server=true",
                 "jdbc:h2:" + getTestName() + ";access_mode_data=r;auto_server=true",
-                "jdbc:h2:mem:" + getTestName() + ";auto_server=true"
+                "jdbc:h2:" + getTestName() + ";AUTO_SERVER=TRUE;DB_CLOSE_ON_EXIT=FALSE",
+                "jdbc:h2:mem:" + getTestName() + ";AUTO_SERVER=TRUE",
         };
         for (String url : urls) {
-            assertThrows(SQLException.class, this).getConnection(url);
+            assertThrows(SQLException.class, () -> getConnection(url));
             try {
                 getConnection(url);
                 fail(url);
@@ -70,43 +73,102 @@ public class TestAutoServer extends TestDb {
             url += ";AUTO_SERVER_PORT=11111";
         }
         String user = getUser(), password = getPassword();
-        Connection connServer = getConnection(url + ";OPEN_NEW=TRUE",
-                user, password);
+        try (Connection connServer = getConnection(url + ";OPEN_NEW=TRUE", user, password)) {
+            int i = ITERATIONS;
+            for (; i > 0; i--) {
+                Thread.sleep(100);
+                SortedProperties prop = SortedProperties.loadProperties(
+                        getBaseDir() + "/" + getTestName() + ".lock.db");
+                String key = prop.getProperty("id");
+                String server = prop.getProperty("server");
+                if (server != null) {
+                    String u2 = url.substring(url.indexOf(';'));
+                    u2 = "jdbc:h2:tcp://" + server + "/" + key + u2;
+                    Connection conn = DriverManager.getConnection(u2, user, password);
+                    conn.close();
+                    int gotPort = Integer.parseInt(server.substring(server.lastIndexOf(':') + 1));
+                    if (port) {
+                        assertEquals(11111, gotPort);
+                    }
+                    break;
+                }
+            }
+            if (i <= 0) {
+                fail();
+            }
+            try (Connection conn = getConnection(url + ";OPEN_NEW=TRUE")) {
+                Statement stat = conn.createStatement();
+                if (config.big) {
+                    try {
+                        stat.execute("SHUTDOWN");
+                    } catch (SQLException e) {
+                        assertKnownException(e);
+                        // the connection is closed
+                    }
+                }
+            }
+        }
+        deleteDb("autoServer");
+    }
 
-        int i = ITERATIONS;
-        for (; i > 0; i--) {
-            Thread.sleep(100);
+
+    private void testSocketReadTimeout(boolean port) throws Exception {
+        if (config.memory || config.networked) {
+            return;
+        }
+        deleteDb(getTestName());
+        String url = getURL(getTestName() + ";AUTO_SERVER=TRUE", true);
+        if (port) {
+            url += ";AUTO_SERVER_PORT=11111";
+        }
+        String user = getUser(), password = getPassword();
+        Connection connServer = getConnection(url + ";OPEN_NEW=TRUE",
+            user, password);
+        try {
             SortedProperties prop = SortedProperties.loadProperties(
-                    getBaseDir() + "/" + getTestName() + ".lock.db");
+                getBaseDir() + "/" + getTestName() + ".lock.db");
             String key = prop.getProperty("id");
             String server = prop.getProperty("server");
             if (server != null) {
                 String u2 = url.substring(url.indexOf(';'));
-                u2 = "jdbc:h2:tcp://" + server + "/" + key + u2;
+                //todo java.net.SocketTimeoutException: Read timed out
+                u2 = "jdbc:h2:tcp://" + server + "/" + key + u2 + ";NETWORK_TIMEOUT=100";
                 Connection conn = DriverManager.getConnection(u2, user, password);
+                Statement stat = conn.createStatement();
+                assertThrows(ErrorCode.CONNECTION_BROKEN_1, stat).
+                    executeQuery("SELECT MAX(RAND()) FROM SYSTEM_RANGE(1, 100000000)");
                 conn.close();
                 int gotPort = Integer.parseInt(server.substring(server.lastIndexOf(':') + 1));
                 if (port) {
                     assertEquals(11111, gotPort);
                 }
-                break;
             }
-        }
-        if (i <= 0) {
-            fail();
-        }
-        Connection conn = getConnection(url + ";OPEN_NEW=TRUE");
-        Statement stat = conn.createStatement();
-        if (config.big) {
+            Connection conn = getConnection(url + ";OPEN_NEW=TRUE");
+            Statement stat = conn.createStatement();
+            if (config.big) {
+                try {
+                    stat.execute("SHUTDOWN");
+                } catch (SQLException e) {
+                    assertKnownException(e);
+                    // the connection is closed
+                }
+            }
+            conn.close();
+        } finally {
             try {
-                stat.execute("SHUTDOWN");
+                connServer.createStatement().execute("SHUTDOWN");
+                if (config.big) {
+                    fail("server should be down already");
+                }
             } catch (SQLException e) {
+                assertTrue(config.big);
                 assertKnownException(e);
-                // the connection is closed
             }
+            try {
+                connServer.close();
+            } catch (SQLException ignore) {}
         }
-        conn.close();
-        connServer.close();
+
         deleteDb("autoServer");
     }
 

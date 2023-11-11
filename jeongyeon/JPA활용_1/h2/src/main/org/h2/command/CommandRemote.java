@@ -1,5 +1,5 @@
 /*
- * Copyright 2004-2019 H2 Group. Multiple-Licensed under the MPL 2.0,
+ * Copyright 2004-2023 H2 Group. Multiple-Licensed under the MPL 2.0,
  * and the EPL 1.0 (https://h2database.com/html/license.html).
  * Initial Developer: H2 Group
  */
@@ -7,8 +7,6 @@ package org.h2.command;
 
 import java.io.IOException;
 import java.util.ArrayList;
-
-import org.h2.engine.Constants;
 import org.h2.engine.GeneratedKeysMode;
 import org.h2.engine.SessionRemote;
 import org.h2.engine.SysProperties;
@@ -22,6 +20,7 @@ import org.h2.result.ResultWithGeneratedKeys;
 import org.h2.util.Utils;
 import org.h2.value.Transfer;
 import org.h2.value.Value;
+import org.h2.value.ValueLob;
 import org.h2.value.ValueNull;
 
 /**
@@ -58,8 +57,7 @@ public class CommandRemote implements CommandInterface {
 
     @Override
     public void stop() {
-        // Must never be called, because remote result is not lazy.
-        throw DbException.throwInternalError();
+        // Ignore
     }
 
     private void prepare(SessionRemote s, boolean createParams) {
@@ -68,14 +66,9 @@ public class CommandRemote implements CommandInterface {
             try {
                 Transfer transfer = transferList.get(i);
 
-                boolean v16 = s.getClientVersion() >= Constants.TCP_PROTOCOL_VERSION_16;
-
                 if (createParams) {
-                    s.traceOperation(v16 ? "SESSION_PREPARE_READ_PARAMS2"
-                            : "SESSION_PREPARE_READ_PARAMS", id);
-                    transfer.writeInt(
-                            v16 ? SessionRemote.SESSION_PREPARE_READ_PARAMS2
-                                    : SessionRemote.SESSION_PREPARE_READ_PARAMS)
+                    s.traceOperation("SESSION_PREPARE_READ_PARAMS2", id);
+                    transfer.writeInt(SessionRemote.SESSION_PREPARE_READ_PARAMS2)
                             .writeInt(id).writeString(sql);
                 } else {
                     s.traceOperation("SESSION_PREPARE", id);
@@ -86,7 +79,7 @@ public class CommandRemote implements CommandInterface {
                 isQuery = transfer.readBoolean();
                 readonly = transfer.readBoolean();
 
-                cmdType = v16 && createParams ? transfer.readInt() : UNKNOWN;
+                cmdType = createParams ? transfer.readInt() : UNKNOWN;
 
                 int paramCount = transfer.readInt();
                 if (createParams) {
@@ -127,7 +120,9 @@ public class CommandRemote implements CommandInterface {
 
     @Override
     public ResultInterface getMetaData() {
-        synchronized (session) {
+        final SessionRemote session = this.session;
+        session.lock();
+        try {
             if (!isQuery) {
                 return null;
             }
@@ -151,13 +146,17 @@ public class CommandRemote implements CommandInterface {
             }
             session.autoCommitIfCluster();
             return result;
+        } finally {
+            session.unlock();
         }
     }
 
     @Override
-    public ResultInterface executeQuery(int maxRows, boolean scrollable) {
+    public ResultInterface executeQuery(long maxRows, boolean scrollable) {
         checkParameters();
-        synchronized (session) {
+        final SessionRemote session = this.session;
+        session.lock();
+        try {
             int objectId = session.getNextId();
             ResultRemote result = null;
             for (int i = 0, count = 0; i < transferList.size(); i++) {
@@ -165,8 +164,8 @@ public class CommandRemote implements CommandInterface {
                 Transfer transfer = transferList.get(i);
                 try {
                     session.traceOperation("COMMAND_EXECUTE_QUERY", id);
-                    transfer.writeInt(SessionRemote.COMMAND_EXECUTE_QUERY).
-                        writeInt(id).writeInt(objectId).writeInt(maxRows);
+                    transfer.writeInt(SessionRemote.COMMAND_EXECUTE_QUERY).writeInt(id).writeInt(objectId);
+                    transfer.writeRowCount(maxRows);
                     int fetch;
                     if (session.isClustered() || scrollable) {
                         fetch = Integer.MAX_VALUE;
@@ -192,18 +191,21 @@ public class CommandRemote implements CommandInterface {
             session.autoCommitIfCluster();
             session.readSessionState();
             return result;
+        } finally {
+            session.unlock();
         }
     }
 
     @Override
     public ResultWithGeneratedKeys executeUpdate(Object generatedKeysRequest) {
         checkParameters();
-        boolean supportsGeneratedKeys = session.isSupportsGeneratedKeys();
         int generatedKeysMode = GeneratedKeysMode.valueOf(generatedKeysRequest);
-        boolean readGeneratedKeys = supportsGeneratedKeys && generatedKeysMode != GeneratedKeysMode.NONE;
+        boolean readGeneratedKeys = generatedKeysMode != GeneratedKeysMode.NONE;
         int objectId = readGeneratedKeys ? session.getNextId() : 0;
-        synchronized (session) {
-            int updateCount = 0;
+        final SessionRemote session = this.session;
+        session.lock();
+        try {
+            long updateCount = 0L;
             ResultRemote generatedKeys = null;
             boolean autoCommit = false;
             for (int i = 0, count = 0; i < transferList.size(); i++) {
@@ -213,29 +215,27 @@ public class CommandRemote implements CommandInterface {
                     session.traceOperation("COMMAND_EXECUTE_UPDATE", id);
                     transfer.writeInt(SessionRemote.COMMAND_EXECUTE_UPDATE).writeInt(id);
                     sendParameters(transfer);
-                    if (supportsGeneratedKeys) {
-                        transfer.writeInt(generatedKeysMode);
-                        switch (generatedKeysMode) {
-                        case GeneratedKeysMode.COLUMN_NUMBERS: {
-                            int[] keys = (int[]) generatedKeysRequest;
-                            transfer.writeInt(keys.length);
-                            for (int key : keys) {
-                                transfer.writeInt(key);
-                            }
-                            break;
+                    transfer.writeInt(generatedKeysMode);
+                    switch (generatedKeysMode) {
+                    case GeneratedKeysMode.COLUMN_NUMBERS: {
+                        int[] keys = (int[]) generatedKeysRequest;
+                        transfer.writeInt(keys.length);
+                        for (int key : keys) {
+                            transfer.writeInt(key);
                         }
-                        case GeneratedKeysMode.COLUMN_NAMES: {
-                            String[] keys = (String[]) generatedKeysRequest;
-                            transfer.writeInt(keys.length);
-                            for (String key : keys) {
-                                transfer.writeString(key);
-                            }
-                            break;
+                        break;
+                    }
+                    case GeneratedKeysMode.COLUMN_NAMES: {
+                        String[] keys = (String[]) generatedKeysRequest;
+                        transfer.writeInt(keys.length);
+                        for (String key : keys) {
+                            transfer.writeString(key);
                         }
-                        }
+                        break;
+                    }
                     }
                     session.done(transfer);
-                    updateCount = transfer.readInt();
+                    updateCount = transfer.readRowCount();
                     autoCommit = transfer.readBoolean();
                     if (readGeneratedKeys) {
                         int columnCount = transfer.readInt();
@@ -256,6 +256,8 @@ public class CommandRemote implements CommandInterface {
                 return new ResultWithGeneratedKeys.WithKeys(updateCount, generatedKeys);
             }
             return ResultWithGeneratedKeys.of(updateCount);
+        } finally {
+            session.unlock();
         }
     }
 
@@ -283,10 +285,12 @@ public class CommandRemote implements CommandInterface {
 
     @Override
     public void close() {
+        final SessionRemote session = this.session;
         if (session == null || session.isClosed()) {
             return;
         }
-        synchronized (session) {
+        session.lock();
+        try {
             session.traceOperation("COMMAND_CLOSE", id);
             for (Transfer transfer : transferList) {
                 try {
@@ -295,13 +299,15 @@ public class CommandRemote implements CommandInterface {
                     trace.error(e, "close");
                 }
             }
+        } finally {
+            session.unlock();
         }
-        session = null;
+        this.session = null;
         try {
             for (ParameterInterface p : parameters) {
                 Value v = p.getParamValue();
-                if (v != null) {
-                    v.remove();
+                if (v instanceof ValueLob) {
+                    ((ValueLob) v).remove();
                 }
             }
         } catch (DbException e) {

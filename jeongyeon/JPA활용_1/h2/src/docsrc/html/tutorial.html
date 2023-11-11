@@ -1,6 +1,6 @@
 <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
 <!--
-Copyright 2004-2019 H2 Group. Multiple-Licensed under the MPL 2.0,
+Copyright 2004-2023 H2 Group. Multiple-Licensed under the MPL 2.0,
 and the EPL 1.0 (https://h2database.com/html/license.html).
 Initial Developer: H2 Group
 -->
@@ -45,8 +45,6 @@ Tutorial
     Using H2 with jOOQ</a><br />
 <a href="#web_applications">
     Using Databases in Web Applications</a><br />
-<a href="#android">
-    Android</a><br />
 <a href="#csv">
     CSV (Comma Separated Values) Support</a><br />
 <a href="#upgrade_backup_restore">
@@ -301,7 +299,7 @@ otherwise they are not parsed correctly. If in doubt, add <code>;</code> before 
             @attributes, @best_row_identifier, @catalogs, @columns,
             @column_privileges, @cross_references, @exported_keys,
             @imported_keys, @index_info,  @primary_keys, @procedures,
-            @procedure_columns, @schemas, @super_tables, @super_types,
+            @procedure_columns, @pseudo_columns, @schemas, @super_tables, @super_types,
             @tables, @table_privileges, @table_types, @type_info, @udts,
             @version_columns
             </code>
@@ -445,7 +443,9 @@ Supported settings are:
 <ul><li><code>webAllowOthers</code>: allow other computers to connect.
 </li><li><code>webPort</code>: the port of the H2 Console
 </li><li><code>webSSL</code>: use encrypted TLS (HTTPS) connections.
-</li><li><code>webAdminPassword</code>: password to access preferences and tools of H2 Console.
+</li><li><code>webAdminPassword</code>: hash of password to access preferences and tools of H2 Console,
+use <code>org.h2.server.web.WebServer.encodeAdminPassword(String)</code> to generate a hash for your password.
+Always use long complex passwords, especially when access from other hosts is enabled.
 </li></ul>
 <p>
 In addition to those settings, the properties of the last recently used connection
@@ -665,7 +665,7 @@ To use H2 within Glassfish, copy the h2*.jar to the directory <code>glassfish/gl
 <p>
 To use H2 in EclipseLink, use the platform class <code>org.eclipse.persistence.platform.database.H2Platform</code>.
 If this platform is not available in your version of EclipseLink, you can use the OraclePlatform instead in many case.
-See also <a href="http://wiki.eclipse.org/EclipseLink/Development/Incubator/Extensions/H2Platform">H2Platform</a>.
+See also <a href="https://wiki.eclipse.org/EclipseLink/Development/Incubator/Extensions/H2Platform">H2Platform</a>.
 </p>
 
 <h2 id="using_activemq">Using Apache ActiveMQ</h2>
@@ -791,6 +791,15 @@ add the following snippet to your web.xml file (between the
 &lt;/listener&gt;
 </pre>
 <p>
+If your servlet container is already Servlet 5-compatible, use the following
+snippet instead:
+</p>
+<pre>
+&lt;listener&gt;
+    &lt;listener-class&gt;org.h2.server.web.JakartaDbStarter&lt;/listener-class&gt;
+&lt;/listener&gt;
+</pre>
+<p>
 For details on how to access the database, see the file <code>DbStarter.java</code>.
 By default this tool opens an embedded connection
 using the database URL <code>jdbc:h2:~/test</code>,
@@ -875,62 +884,15 @@ add the following configuration to your <code>web.xml</code>:
 For details, see also <code>src/tools/WEB-INF/web.xml</code>.
 </p>
 <p>
+If your application is already Servlet 5-compatible, use the servlet class
+<code>org.h2.server.web.JakartaWebServlet</code> instead.
+</p>
+<p>
 To create a web application with just the H2 Console, run the following command:
 </p>
 <pre>
 build warConsole
 </pre>
-
-<h2 id="android">Android</h2>
-<p>
-You can use this database on an Android device (using the Dalvik VM) instead of or in addition to SQLite.
-So far, only very few tests and benchmarks were run, but it seems that performance is similar to SQLite,
-except for opening and closing a database, which is not yet optimized in H2
-(H2 takes about 0.2 seconds, and SQLite about 0.02 seconds).
-Read operations seem to be a bit faster than SQLite, and write operations seem to be slower.
-So far, only very few tests have been run, and everything seems to work as expected.
-Fulltext search was not yet tested, however the native fulltext search should work.
-</p>
-<p>
-Reasons to use H2 instead of SQLite are:
-</p>
-<ul><li>Full Unicode support including UPPER() and LOWER().
-</li><li>Streaming API for BLOB and CLOB data.
-</li><li>Fulltext search.
-</li><li>Multiple connections.
-</li><li>User defined functions and triggers.
-</li><li>Database file encryption.
-</li><li>Reading and writing CSV files (this feature can be used outside the database as well).
-</li><li>Referential integrity and check constraints.
-</li><li>Better data type and SQL support.
-</li><li>In-memory databases, read-only databases, linked tables.
-</li><li>Better compatibility with other databases which simplifies porting applications.
-</li><li>Possibly better performance (so far for read operations).
-</li><li>Server mode (accessing a database on a different machine over TCP/IP).
-</li></ul>
-<p>
-Currently only the JDBC API is supported (it is planned to support the Android database API in future releases).
-Both the regular H2 jar file and the smaller <code>h2small-*.jar</code> can be used.
-To create the smaller jar file, run the command <code>./build.sh jarSmall</code> (Linux / Mac OS)
-or <code>build.bat jarSmall</code> (Windows).
-</p>
-<p>
-The database files needs to be stored in a place that is accessible for the application.
-Example:
-</p>
-<pre>
-String url = "jdbc:h2:/data/data/" +
-    "com.example.hello" +
-    "/data/hello" +
-    ";FILE_LOCK=FS" +
-    ";PAGE_SIZE=1024" +
-    ";CACHE_SIZE=8192";
-conn = DriverManager.getConnection(url);
-...
-</pre>
-<p>
-Limitations: Using a connection pool is currently not supported, because the required <code>javax.sql.</code> classes are not available on Android.
-</p>
 
 <h2 id="csv">CSV (Comma Separated Values) Support</h2>
 <p>
@@ -1065,6 +1027,15 @@ SQL script files may contain references to other script files, in the form of
 need to be available on the server side.
 </p>
 
+<p>
+If the script was generated by H2 1.4.200 or an older version, add <code>VARIABLE_BINARY</code> option to import it
+into more recent version.
+</p>
+
+<pre>
+java org.h2.tools.RunScript -url jdbc:h2:~/test -user sa -script test.zip -options compression zip variable_binary
+</pre>
+
 <h3>Online Backup</h3>
 <p>
 The <code>BACKUP</code> SQL statement and the <code>Backup</code> tool both create a zip file
@@ -1192,7 +1163,7 @@ Another solution to use H2 in NeoOffice is:
 </li></ul>
 <p>
 This can be done by create it using the NetBeans OpenOffice plugin.
-See also <a href="http://wiki.services.openoffice.org/wiki/Extensions_development_java">Extensions Development</a>.
+See also <a href="https://wiki.openoffice.org/wiki/Extensions_development_java">Extensions Development</a>.
 </p>
 
 <h2 id="web_start">Java Web Start / JNLP</h2>
@@ -1216,7 +1187,7 @@ Still, using a connection pool improves performance if you open and close connec
 A simple connection pool is included in H2. It is based on the
 <a href="http://www.source-code.biz/miniconnectionpoolmanager/">Mini Connection Pool Manager</a>
 from Christian d'Heureuse. There are other, more complex, open source connection pools available,
-for example the <a href="http://commons.apache.org/proper/commons-dbcp/">Apache Commons DBCP</a>.
+for example the <a href="https://commons.apache.org/proper/commons-dbcp/">Apache Commons DBCP</a>.
 For H2, it is about twice as faster to get a connection from the built-in connection pool than to get
 one using <code>DriverManager.getConnection()</code>.The build-in connection pool is used as follows:
 </p>
@@ -1302,8 +1273,7 @@ org.h2.fulltext.FullText.searchData(conn, text, limit, offset);
 <h3>Using the Apache Lucene Fulltext Search</h3>
 <p>
 To use the Apache Lucene full text search, you need the Lucene library in the classpath.
-Apache Lucene 5.5.5 or later version up to 8.0.* is required.
-Newer versions may also work, but were not tested.
+Apache Lucene 8.5.2 or binary compatible version is required.
 How to do that depends on the application; if you use the H2 Console, you can add the Lucene
 jar file to the environment variables <code>H2DRIVERS</code> or
 <code>CLASSPATH</code>.
@@ -1392,7 +1362,7 @@ The value can also be changed using the SET() method. This is useful in queries:
 </p>
 <pre>
 SET @TOTAL = NULL;
-SELECT X, SET(@TOTAL, IFNULL(@TOTAL, 1.) * X) F FROM SYSTEM_RANGE(1, 50);
+SELECT X, SET(@TOTAL, COALESCE(@TOTAL, 1.) * X) F FROM SYSTEM_RANGE(1, 50);
 </pre>
 <p>
 Variables that are not set evaluate to <code>NULL</code>.
@@ -1404,30 +1374,35 @@ Rolling back a transaction does not affect the value of a user-defined variable.
 
 <h2 id="date_time">Date and Time</h2>
 <p>
-Date, time and timestamp values support ISO 8601 formatting, including time zone:
+Date, time and timestamp values support standard literals:
 </p>
 <pre>
-CALL TIMESTAMP '2008-01-01 12:00:00+01:00';
+VALUES (
+    DATE '2008-01-01',
+    TIME '12:00:00',
+    TIME WITH TIME ZONE '12:00:00+01:00',
+    TIMESTAMP '2008-01-01 12:00:00',
+    TIMESTAMP WITH TIME ZONE '2008-01-01 12:00:00+01:00'
+);
 </pre>
 <p>
-If the time zone is not set, the value is parsed using the current time zone setting of the system.
-Date and time information is stored in H2 database files with or without time zone information depending on used data type.
+ISO 8601-style datetime formats with T instead of space between date and time parts are also supported.
 </p>
-<ul>
-<li>
-With TIMESTAMP data type if the database is opened using another system time zone, the date and time will be the same.
-That means if you store the value '2000-01-01 12:00:00' in one time zone, then close the database
-and open the database again in a different time zone, you will also get '2000-01-01 12:00:00'.
-Please note that changing the time zone after the H2 driver is loaded is not supported.
-</li>
-<li>
-With TIMESTAMP WITH TIME ZONE data type time zone offset is stored and if you store the value
-'2008-01-01 12:00:00+01:00' it remains the same even if you close and reopen the database with a different time zone.
-If you store the value with specified time zone name like '2008-01-01 12:00:00 Europe/Berlin' this name will be
-converted to time zone offset.
+<p>
+TIME and TIMESTAMP values are preserved without time zone information as local time.
+That means if you store the value '2000-01-01 12:00:00' in one time zone, then change time zone of the session
+you will also get '2000-01-01 12:00:00', the value will not be adjusted to the new time zone,
+therefore its absolute value in UTC may be different.
+</p>
+<p>
+TIME WITH TIME ZONE and TIMESTAMP WITH TIME ZONE values preserve the specified time zone offset
+and if you store the value '2008-01-01 12:00:00+01:00' it also remains the same
+even if you change time zone of the session,
+and because it has a time zone offset its absolute value in UTC will be the same.
+TIMESTAMP WITH TIME ZONE values may be also specified with time zone name like '2008-01-01 12:00:00 Europe/Berlin'.
+It that case this name will be converted into time zone offset.
 Names of time zones are not stored.
-</li>
-</ul>
+</p>
 
 <h2 id="spring">Using Spring</h2>
 <h3>Using the TCP Server</h3>

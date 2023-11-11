@@ -1,5 +1,5 @@
 /*
- * Copyright 2004-2019 H2 Group. Multiple-Licensed under the MPL 2.0,
+ * Copyright 2004-2023 H2 Group. Multiple-Licensed under the MPL 2.0,
  * and the EPL 1.0 (https://h2database.com/html/license.html).
  * Initial Developer: H2 Group
  */
@@ -23,7 +23,6 @@ import java.util.zip.ZipOutputStream;
 
 import org.h2.command.dml.BackupCommand;
 import org.h2.engine.Constants;
-import org.h2.engine.SysProperties;
 import org.h2.message.DbException;
 import org.h2.store.fs.FileUtils;
 import org.h2.util.IOUtils;
@@ -42,8 +41,9 @@ public class FileShell extends Tool {
     private String currentWorkingDirectory;
 
     /**
-     * Options are case sensitive. Supported options are:
+     * Options are case sensitive.
      * <table>
+     * <caption>Supported options</caption>
      * <tr><td>[-help] or [-?]</td>
      * <td>Print the list of options</td></tr>
      * <tr><td>[-verbose]</td>
@@ -52,9 +52,9 @@ public class FileShell extends Tool {
      * <td>Execute the given commands and exit</td></tr>
      * </table>
      * Multiple commands may be executed if separated by ;
-     * @h2.resource
      *
      * @param args the command line arguments
+     * @throws SQLException on failure
      */
     public static void main(String... args) throws SQLException {
         new FileShell().runTool(args);
@@ -343,7 +343,7 @@ public class FileShell extends Tool {
             for (String fileName : source) {
                 String f = FileUtils.toRealPath(fileName);
                 if (!f.startsWith(base)) {
-                    DbException.throwInternalError(f + " does not start with " + base);
+                    throw DbException.getInternalError(f + " does not start with " + base);
                 }
                 if (f.endsWith(zipFileName)) {
                     continue;
@@ -388,17 +388,13 @@ public class FileShell extends Tool {
                 }
                 String fileName = entry.getName();
                 // restoring windows backups on linux and vice versa
-                fileName = fileName.replace('\\',
-                        SysProperties.FILE_SEPARATOR.charAt(0));
-                fileName = fileName.replace('/',
-                        SysProperties.FILE_SEPARATOR.charAt(0));
-                if (fileName.startsWith(SysProperties.FILE_SEPARATOR)) {
+                fileName = IOUtils.nameSeparatorsToNative(fileName);
+                if (fileName.startsWith(File.separator)) {
                     fileName = fileName.substring(1);
                 }
                 OutputStream o = null;
                 try {
-                    o = FileUtils.newOutputStream(targetDir
-                            + SysProperties.FILE_SEPARATOR + fileName, false);
+                    o = FileUtils.newOutputStream(targetDir + File.separatorChar + fileName, false);
                     IOUtils.copy(zipIn, o);
                     o.close();
                 } finally {
@@ -451,7 +447,7 @@ public class FileShell extends Tool {
         }
         String unwrapped = FileUtils.unwrap(f);
         String prefix = f.substring(0, f.length() - unwrapped.length());
-        f = prefix + currentWorkingDirectory + SysProperties.FILE_SEPARATOR + unwrapped;
+        f = prefix + currentWorkingDirectory + File.separatorChar + unwrapped;
         return FileUtils.toRealPath(f);
     }
 

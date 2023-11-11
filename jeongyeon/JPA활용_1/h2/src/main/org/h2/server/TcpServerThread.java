@@ -1,5 +1,5 @@
 /*
- * Copyright 2004-2019 H2 Group. Multiple-Licensed under the MPL 2.0,
+ * Copyright 2004-2023 H2 Group. Multiple-Licensed under the MPL 2.0,
  * and the EPL 1.0 (https://h2database.com/html/license.html).
  * Initial Developer: H2 Group
  */
@@ -23,12 +23,14 @@ import org.h2.engine.Constants;
 import org.h2.engine.Engine;
 import org.h2.engine.GeneratedKeysMode;
 import org.h2.engine.Session;
+import org.h2.engine.SessionLocal;
 import org.h2.engine.SessionRemote;
 import org.h2.engine.SysProperties;
 import org.h2.expression.Parameter;
 import org.h2.expression.ParameterInterface;
 import org.h2.expression.ParameterRemote;
 import org.h2.jdbc.JdbcException;
+import org.h2.jdbc.meta.DatabaseMetaServer;
 import org.h2.message.DbException;
 import org.h2.result.ResultColumn;
 import org.h2.result.ResultInterface;
@@ -39,10 +41,10 @@ import org.h2.util.NetUtils;
 import org.h2.util.NetworkConnectionInfo;
 import org.h2.util.SmallLRUCache;
 import org.h2.util.SmallMap;
-import org.h2.value.DataType;
+import org.h2.util.TimeZoneProvider;
 import org.h2.value.Transfer;
 import org.h2.value.Value;
-import org.h2.value.ValueLobDb;
+import org.h2.value.ValueLob;
 
 /**
  * One server thread is opened per client connection.
@@ -51,7 +53,7 @@ public class TcpServerThread implements Runnable {
 
     protected final Transfer transfer;
     private final TcpServer server;
-    private Session session;
+    private SessionLocal session;
     private boolean stop;
     private Thread thread;
     private Command commit;
@@ -64,6 +66,7 @@ public class TcpServerThread implements Runnable {
     private final int threadId;
     private int clientVersion;
     private String sessionId;
+    private long lastRemoteSettingsId;
 
     TcpServerThread(Socket socket, TcpServer server, int id) {
         this.server = server;
@@ -154,10 +157,8 @@ public class TcpServerThread implements Runnable {
                 transfer.writeInt(SessionRemote.STATUS_OK);
                 transfer.writeInt(clientVersion);
                 transfer.flush();
-                if (clientVersion >= Constants.TCP_PROTOCOL_VERSION_13) {
-                    if (ci.getFilePasswordHash() != null) {
-                        ci.setFileEncryptionKey(transfer.readBytes());
-                    }
+                if (ci.getFilePasswordHash() != null) {
+                    ci.setFileEncryptionKey(transfer.readBytes());
                 }
                 ci.setNetworkConnectionInfo(new NetworkConnectionInfo(
                         NetUtils.ipToShortForm(new StringBuilder(server.getSSL() ? "ssl://" : "tcp://"),
@@ -165,24 +166,31 @@ public class TcpServerThread implements Runnable {
                                 .append(':').append(socket.getLocalPort()).toString(), //
                         socket.getInetAddress().getAddress(), socket.getPort(),
                         new StringBuilder().append('P').append(clientVersion).toString()));
-                session = Engine.getInstance().createSession(ci);
+                if (clientVersion < Constants.TCP_PROTOCOL_VERSION_20) {
+                    // For DatabaseMetaData
+                    ci.setProperty("OLD_INFORMATION_SCHEMA", "TRUE");
+                    // For H2 Console
+                    ci.setProperty("NON_KEYWORDS", "VALUE");
+                }
+                session = Engine.createSession(ci);
                 transfer.setSession(session);
                 server.addConnection(threadId, originalURL, ci.getUserName());
                 trace("Connected");
+                lastRemoteSettingsId = session.getDatabase().getRemoteSettingsId();
             } catch (OutOfMemoryError e) {
                 // catch this separately otherwise such errors will never hit the console
                 server.traceError(e);
-                sendError(e);
+                sendError(e, true);
                 stop = true;
             } catch (Throwable e) {
-                sendError(e);
+                sendError(e,true);
                 stop = true;
             }
             while (!stop) {
                 try {
                     process();
                 } catch (Throwable e) {
-                    sendError(e);
+                    sendError(e, true);
                 }
             }
             trace("Disconnect");
@@ -229,7 +237,7 @@ public class TcpServerThread implements Runnable {
         }
     }
 
-    private void sendError(Throwable t) {
+    private void sendError(Throwable t, boolean withStatus) {
         try {
             SQLException e = DbException.convert(t).getSQLException();
             StringWriter writer = new StringWriter();
@@ -245,7 +253,10 @@ public class TcpServerThread implements Runnable {
                 message = e.getMessage();
                 sql = null;
             }
-            transfer.writeInt(SessionRemote.STATUS_ERROR).
+            if (withStatus) {
+                transfer.writeInt(SessionRemote.STATUS_ERROR);
+            }
+            transfer.
                     writeString(e.getSQLState()).writeString(message).
                     writeString(sql).writeInt(e.getErrorCode()).writeString(trace).flush();
         } catch (Exception e2) {
@@ -262,16 +273,16 @@ public class TcpServerThread implements Runnable {
         ArrayList<? extends ParameterInterface> params = command.getParameters();
         for (int i = 0; i < len; i++) {
             Parameter p = (Parameter) params.get(i);
-            p.setValue(transfer.readValue());
+            p.setValue(transfer.readValue(null));
         }
     }
 
     private void process() throws IOException {
+        final SessionLocal session = this.session;
         int operation = transfer.readInt();
         switch (operation) {
-        case SessionRemote.SESSION_PREPARE_READ_PARAMS:
-        case SessionRemote.SESSION_PREPARE_READ_PARAMS2:
-        case SessionRemote.SESSION_PREPARE: {
+        case SessionRemote.SESSION_PREPARE:
+        case SessionRemote.SESSION_PREPARE_READ_PARAMS2: {
             int id = transfer.readInt();
             String sql = transfer.readString();
             int old = session.getModificationId();
@@ -283,7 +294,7 @@ public class TcpServerThread implements Runnable {
             transfer.writeInt(getState(old)).writeBoolean(isQuery).
                     writeBoolean(readonly);
 
-            if (operation == SessionRemote.SESSION_PREPARE_READ_PARAMS2) {
+            if (operation != SessionRemote.SESSION_PREPARE) {
                 transfer.writeInt(command.getCommandType());
             }
 
@@ -323,7 +334,7 @@ public class TcpServerThread implements Runnable {
             cache.addObject(objectId, result);
             int columnCount = result.getVisibleColumnCount();
             transfer.writeInt(SessionRemote.STATUS_OK).
-                    writeInt(columnCount).writeInt(0);
+                    writeInt(columnCount).writeRowCount(0L);
             for (int i = 0; i < columnCount; i++) {
                 ResultColumn.writeColumn(transfer, result, i);
             }
@@ -333,28 +344,28 @@ public class TcpServerThread implements Runnable {
         case SessionRemote.COMMAND_EXECUTE_QUERY: {
             int id = transfer.readInt();
             int objectId = transfer.readInt();
-            int maxRows = transfer.readInt();
+            long maxRows = transfer.readRowCount();
             int fetchSize = transfer.readInt();
             Command command = (Command) cache.getObject(id, false);
             setParameters(command);
             int old = session.getModificationId();
             ResultInterface result;
-            synchronized (session) {
+            session.lock();
+            try {
                 result = command.executeQuery(maxRows, false);
+            } finally {
+                session.unlock();
             }
             cache.addObject(objectId, result);
             int columnCount = result.getVisibleColumnCount();
             int state = getState(old);
             transfer.writeInt(state).writeInt(columnCount);
-            int rowCount = result.getRowCount();
-            transfer.writeInt(rowCount);
+            long rowCount = result.isLazy() ? -1L : result.getRowCount();
+            transfer.writeRowCount(rowCount);
             for (int i = 0; i < columnCount; i++) {
                 ResultColumn.writeColumn(transfer, result, i);
             }
-            int fetch = Math.min(rowCount, fetchSize);
-            for (int i = 0; i < fetch; i++) {
-                sendRow(result);
-            }
+            sendRows(result, rowCount >= 0L ? Math.min(rowCount, fetchSize) : fetchSize);
             transfer.flush();
             break;
         }
@@ -362,48 +373,46 @@ public class TcpServerThread implements Runnable {
             int id = transfer.readInt();
             Command command = (Command) cache.getObject(id, false);
             setParameters(command);
-            boolean supportsGeneratedKeys = clientVersion >= Constants.TCP_PROTOCOL_VERSION_17;
-            boolean writeGeneratedKeys = supportsGeneratedKeys;
+            boolean writeGeneratedKeys = true;
             Object generatedKeysRequest;
-            if (supportsGeneratedKeys) {
-                int mode = transfer.readInt();
-                switch (mode) {
-                case GeneratedKeysMode.NONE:
-                    generatedKeysRequest = false;
-                    writeGeneratedKeys = false;
-                    break;
-                case GeneratedKeysMode.AUTO:
-                    generatedKeysRequest = true;
-                    break;
-                case GeneratedKeysMode.COLUMN_NUMBERS: {
-                    int len = transfer.readInt();
-                    int[] keys = new int[len];
-                    for (int i = 0; i < len; i++) {
-                        keys[i] = transfer.readInt();
-                    }
-                    generatedKeysRequest = keys;
-                    break;
-                }
-                case GeneratedKeysMode.COLUMN_NAMES: {
-                    int len = transfer.readInt();
-                    String[] keys = new String[len];
-                    for (int i = 0; i < len; i++) {
-                        keys[i] = transfer.readString();
-                    }
-                    generatedKeysRequest = keys;
-                    break;
-                }
-                default:
-                    throw DbException.get(ErrorCode.CONNECTION_BROKEN_1,
-                            "Unsupported generated keys' mode " + mode);
-                }
-            } else {
+            int mode = transfer.readInt();
+            switch (mode) {
+            case GeneratedKeysMode.NONE:
                 generatedKeysRequest = false;
+                writeGeneratedKeys = false;
+                break;
+            case GeneratedKeysMode.AUTO:
+                generatedKeysRequest = true;
+                break;
+            case GeneratedKeysMode.COLUMN_NUMBERS: {
+                int len = transfer.readInt();
+                int[] keys = new int[len];
+                for (int i = 0; i < len; i++) {
+                    keys[i] = transfer.readInt();
+                }
+                generatedKeysRequest = keys;
+                break;
+            }
+            case GeneratedKeysMode.COLUMN_NAMES: {
+                int len = transfer.readInt();
+                String[] keys = new String[len];
+                for (int i = 0; i < len; i++) {
+                    keys[i] = transfer.readString();
+                }
+                generatedKeysRequest = keys;
+                break;
+            }
+            default:
+                throw DbException.get(ErrorCode.CONNECTION_BROKEN_1,
+                        "Unsupported generated keys' mode " + mode);
             }
             int old = session.getModificationId();
             ResultWithGeneratedKeys result;
-            synchronized (session) {
+            session.lock();
+            try {
                 result = command.executeUpdate(generatedKeysRequest);
+            } finally {
+                session.unlock();
             }
             int status;
             if (session.isClosed()) {
@@ -412,20 +421,19 @@ public class TcpServerThread implements Runnable {
             } else {
                 status = getState(old);
             }
-            transfer.writeInt(status).writeInt(result.getUpdateCount()).
-                    writeBoolean(session.getAutoCommit());
+            transfer.writeInt(status);
+            transfer.writeRowCount(result.getUpdateCount());
+            transfer.writeBoolean(session.getAutoCommit());
             if (writeGeneratedKeys) {
                 ResultInterface generatedKeys = result.getGeneratedKeys();
                 int columnCount = generatedKeys.getVisibleColumnCount();
                 transfer.writeInt(columnCount);
-                int rowCount = generatedKeys.getRowCount();
-                transfer.writeInt(rowCount);
+                long rowCount = generatedKeys.getRowCount();
+                transfer.writeRowCount(rowCount);
                 for (int i = 0; i < columnCount; i++) {
                     ResultColumn.writeColumn(transfer, generatedKeys, i);
                 }
-                for (int i = 0; i < rowCount; i++) {
-                    sendRow(generatedKeys);
-                }
+                sendRows(generatedKeys, rowCount);
                 generatedKeys.close();
             }
             transfer.flush();
@@ -445,9 +453,7 @@ public class TcpServerThread implements Runnable {
             int count = transfer.readInt();
             ResultInterface result = (ResultInterface) cache.getObject(id, false);
             transfer.writeInt(SessionRemote.STATUS_OK);
-            for (int i = 0; i < count; i++) {
-                sendRow(result);
-            }
+            sendRows(result, count);
             transfer.flush();
             break;
         }
@@ -476,11 +482,12 @@ public class TcpServerThread implements Runnable {
         }
         case SessionRemote.SESSION_SET_ID: {
             sessionId = transfer.readString();
-            transfer.writeInt(SessionRemote.STATUS_OK);
-            if (clientVersion >= Constants.TCP_PROTOCOL_VERSION_15) {
-                transfer.writeBoolean(session.getAutoCommit());
+            if (clientVersion >= Constants.TCP_PROTOCOL_VERSION_20) {
+                session.setTimeZone(TimeZoneProvider.ofId(transfer.readString()));
             }
-            transfer.flush();
+            transfer.writeInt(SessionRemote.STATUS_OK)
+                .writeBoolean(session.getAutoCommit())
+                .flush();
             break;
         }
         case SessionRemote.SESSION_SET_AUTOCOMMIT: {
@@ -496,40 +503,15 @@ public class TcpServerThread implements Runnable {
         }
         case SessionRemote.LOB_READ: {
             long lobId = transfer.readLong();
-            byte[] hmac;
-            CachedInputStream in;
-            boolean verifyMac;
-            if (clientVersion >= Constants.TCP_PROTOCOL_VERSION_11) {
-                if (clientVersion >= Constants.TCP_PROTOCOL_VERSION_12) {
-                    hmac = transfer.readBytes();
-                    verifyMac = true;
-                } else {
-                    hmac = null;
-                    verifyMac = false;
-                }
-                in = lobs.get(lobId);
-                if (in == null && verifyMac) {
-                    in = new CachedInputStream(null);
-                    lobs.put(lobId, in);
-                }
-            } else {
-                verifyMac = false;
-                hmac = null;
-                in = lobs.get(lobId);
-            }
+            byte[] hmac = transfer.readBytes();
             long offset = transfer.readLong();
             int length = transfer.readInt();
-            if (verifyMac) {
-                transfer.verifyLobMac(hmac, lobId);
-            }
-            if (in == null) {
-                throw DbException.get(ErrorCode.OBJECT_CLOSED);
-            }
-            if (in.getPos() != offset) {
+            transfer.verifyLobMac(hmac, lobId);
+            CachedInputStream in = lobs.get(lobId);
+            if (in == null || in.getPos() != offset) {
                 LobStorageInterface lobStorage = session.getDataHandler().getLobStorage();
                 // only the lob id is used
-                ValueLobDb lob = ValueLobDb.create(Value.BLOB, null, -1, lobId, hmac, -1);
-                InputStream lobIn = lobStorage.getInputStream(lob, hmac, -1);
+                InputStream lobIn = lobStorage.getInputStream(lobId, -1);
                 in = new CachedInputStream(lobIn);
                 lobs.put(lobId, in);
                 lobIn.skip(offset);
@@ -544,6 +526,33 @@ public class TcpServerThread implements Runnable {
             transfer.flush();
             break;
         }
+        case SessionRemote.GET_JDBC_META: {
+            int code = transfer.readInt();
+            int length = transfer.readInt();
+            Value[] args = new Value[length];
+            for (int i = 0; i < length; i++) {
+                args[i] = transfer.readValue(null);
+            }
+            int old = session.getModificationId();
+            ResultInterface result;
+            session.lock();
+            try {
+                result = DatabaseMetaServer.process(session, code, args);
+            } finally {
+                session.unlock();
+            }
+            int columnCount = result.getVisibleColumnCount();
+            int state = getState(old);
+            transfer.writeInt(state).writeInt(columnCount);
+            long rowCount = result.getRowCount();
+            transfer.writeRowCount(rowCount);
+            for (int i = 0; i < columnCount; i++) {
+                ResultColumn.writeColumn(transfer, result, i);
+            }
+            sendRows(result, rowCount);
+            transfer.flush();
+            break;
+        }
         default:
             trace("Unknown operation: " + operation);
             close();
@@ -555,38 +564,52 @@ public class TcpServerThread implements Runnable {
             return SessionRemote.STATUS_CLOSED;
         }
         if (session.getModificationId() == oldModificationId) {
-            return SessionRemote.STATUS_OK;
+            long remoteSettingsId = session.getDatabase().getRemoteSettingsId();
+            if (lastRemoteSettingsId == remoteSettingsId) {
+                return SessionRemote.STATUS_OK;
+            }
+            lastRemoteSettingsId = remoteSettingsId;
         }
         return SessionRemote.STATUS_OK_STATE_CHANGED;
     }
 
-    private void sendRow(ResultInterface result) throws IOException {
-        if (result.next()) {
-            transfer.writeBoolean(true);
-            Value[] v = result.currentRow();
-            for (int i = 0; i < result.getVisibleColumnCount(); i++) {
-                if (clientVersion >= Constants.TCP_PROTOCOL_VERSION_12) {
-                    transfer.writeValue(v[i]);
+    private void sendRows(ResultInterface result, long count) throws IOException {
+        int columnCount = result.getVisibleColumnCount();
+        boolean lazy = result.isLazy();
+        Session oldSession = lazy ? session.setThreadLocalSession() : null;
+        try {
+            while (count-- > 0L) {
+                boolean hasNext;
+                try {
+                    hasNext = result.next();
+                } catch (Exception e) {
+                    transfer.writeByte((byte) -1);
+                    sendError(e, false);
+                    break;
+                }
+                if (hasNext) {
+                    transfer.writeByte((byte) 1);
+                    Value[] values = result.currentRow();
+                    for (int i = 0; i < columnCount; i++) {
+                        Value v = values[i];
+                        if (lazy && v instanceof ValueLob) {
+                            ValueLob v2 = ((ValueLob) v).copyToResult();
+                            if (v2 != v) {
+                                v = session.addTemporaryLob(v2);
+                            }
+                        }
+                        transfer.writeValue(v);
+                    }
                 } else {
-                    writeValue(v[i]);
+                    transfer.writeByte((byte) 0);
+                    break;
                 }
             }
-        } else {
-            transfer.writeBoolean(false);
-        }
-    }
-
-    private void writeValue(Value v) throws IOException {
-        if (DataType.isLargeObject(v.getValueType())) {
-            if (v instanceof ValueLobDb) {
-                ValueLobDb lob = (ValueLobDb) v;
-                if (lob.isStored()) {
-                    long id = lob.getLobId();
-                    lobs.put(id, new CachedInputStream(null));
-                }
+        } finally {
+            if (lazy) {
+                session.resetThreadLocalSession(oldSession);
             }
         }
-        transfer.writeValue(v);
     }
 
     void setThread(Thread thread) {

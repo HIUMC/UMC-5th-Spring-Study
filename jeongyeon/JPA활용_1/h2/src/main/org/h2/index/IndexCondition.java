@@ -1,5 +1,5 @@
 /*
- * Copyright 2004-2019 H2 Group. Multiple-Licensed under the MPL 2.0,
+ * Copyright 2004-2023 H2 Group. Multiple-Licensed under the MPL 2.0,
  * and the EPL 1.0 (https://h2database.com/html/license.html).
  * Initial Developer: H2 Group
  */
@@ -9,8 +9,9 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.TreeSet;
-import org.h2.command.dml.Query;
-import org.h2.engine.Session;
+
+import org.h2.command.query.Query;
+import org.h2.engine.SessionLocal;
 import org.h2.expression.Expression;
 import org.h2.expression.ExpressionColumn;
 import org.h2.expression.ExpressionVisitor;
@@ -20,6 +21,7 @@ import org.h2.result.ResultInterface;
 import org.h2.table.Column;
 import org.h2.table.TableType;
 import org.h2.value.Value;
+import org.h2.value.ValueArray;
 
 /**
  * A index condition object is made for each condition that can potentially use
@@ -114,6 +116,18 @@ public class IndexCondition {
     }
 
     /**
+     * Create an index condition with the compare type IN_ARRAY and with the
+     * given parameters.
+     *
+     * @param column the column
+     * @param array the array
+     * @return the index condition
+     */
+    public static IndexCondition getInArray(ExpressionColumn column, Expression array) {
+        return new IndexCondition(Comparison.IN_ARRAY, column, array);
+    }
+
+    /**
      * Create an index condition with the compare type IN_QUERY and with the
      * given parameters.
      *
@@ -134,7 +148,7 @@ public class IndexCondition {
      * @param session the session
      * @return the value
      */
-    public Value getCurrentValue(Session session) {
+    public Value getCurrentValue(SessionLocal session) {
         return expression.getValue(session);
     }
 
@@ -145,12 +159,23 @@ public class IndexCondition {
      * @param session the session
      * @return the value list
      */
-    public Value[] getCurrentValueList(Session session) {
+    public Value[] getCurrentValueList(SessionLocal session) {
         TreeSet<Value> valueSet = new TreeSet<>(session.getDatabase().getCompareMode());
-        for (Expression e : expressionList) {
-            Value v = e.getValue(session);
-            v = column.convert(v, true);
-            valueSet.add(v);
+        if (compareType == Comparison.IN_LIST) {
+            for (Expression e : expressionList) {
+                Value v = e.getValue(session);
+                v = column.convert(session, v);
+                valueSet.add(v);
+            }
+        } else if (compareType == Comparison.IN_ARRAY) {
+            Value v = expression.getValue(session);
+            if (v instanceof ValueArray) {
+                for (Value e : ((ValueArray) v).getList()) {
+                    valueSet.add(e);
+                }
+            }
+        } else {
+            throw DbException.getInternalError("compareType = " + compareType);
         }
         Value[] array = valueSet.toArray(new Value[valueSet.size()]);
         Arrays.sort(array, session.getDatabase().getCompareMode());
@@ -170,15 +195,15 @@ public class IndexCondition {
     /**
      * Get the SQL snippet of this comparison.
      *
-     * @param alwaysQuote quote all identifiers
+     * @param sqlFlags formatting flags
      * @return the SQL snippet
      */
-    public String getSQL(boolean alwaysQuote) {
+    public String getSQL(int sqlFlags) {
         if (compareType == Comparison.FALSE) {
             return "FALSE";
         }
         StringBuilder builder = new StringBuilder();
-        column.getSQL(builder, alwaysQuote);
+        column.getSQL(builder, sqlFlags);
         switch (compareType) {
         case Comparison.EQUAL:
             builder.append(" = ");
@@ -202,23 +227,24 @@ public class IndexCondition {
             builder.append(" < ");
             break;
         case Comparison.IN_LIST:
-            builder.append(" IN(");
-            Expression.writeExpressions(builder, expressionList, alwaysQuote);
-            builder.append(')');
+            Expression.writeExpressions(builder.append(" IN("), expressionList, sqlFlags).append(')');
             break;
+        case Comparison.IN_ARRAY:
+            return expression.getSQL(builder.append(" = ANY("), sqlFlags, Expression.AUTO_PARENTHESES).append(')')
+                    .toString();
         case Comparison.IN_QUERY:
             builder.append(" IN(");
-            builder.append(expressionQuery.getPlanSQL(alwaysQuote));
+            builder.append(expressionQuery.getPlanSQL(sqlFlags));
             builder.append(')');
             break;
         case Comparison.SPATIAL_INTERSECTS:
             builder.append(" && ");
             break;
         default:
-            DbException.throwInternalError("type=" + compareType);
+            throw DbException.getInternalError("type=" + compareType);
         }
         if (expression != null) {
-            expression.getSQL(builder, alwaysQuote);
+            expression.getSQL(builder, sqlFlags, Expression.AUTO_PARENTHESES);
         }
         return builder.toString();
     }
@@ -237,6 +263,7 @@ public class IndexCondition {
         case Comparison.EQUAL_NULL_SAFE:
             return EQUALITY;
         case Comparison.IN_LIST:
+        case Comparison.IN_ARRAY:
         case Comparison.IN_QUERY:
             if (indexConditions.size() > 1) {
                 if (TableType.TABLE != column.getTable().getTableType()) {
@@ -261,7 +288,7 @@ public class IndexCondition {
         case Comparison.SPATIAL_INTERSECTS:
             return SPATIAL_INTERSECTS;
         default:
-            throw DbException.throwInternalError("type=" + compareType);
+            throw DbException.getInternalError("type=" + compareType);
         }
     }
 

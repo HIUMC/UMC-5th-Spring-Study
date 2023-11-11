@@ -1,5 +1,5 @@
 /*
- * Copyright 2004-2019 H2 Group. Multiple-Licensed under the MPL 2.0,
+ * Copyright 2004-2023 H2 Group. Multiple-Licensed under the MPL 2.0,
  * and the EPL 1.0 (https://h2database.com/html/license.html).
  * Initial Developer: H2 Group
  */
@@ -11,9 +11,9 @@ import java.sql.SQLException;
 import java.sql.Statement;
 
 import org.h2.store.fs.FileUtils;
-import org.h2.tools.Script;
 import org.h2.tools.DeleteDbFiles;
 import org.h2.tools.RunScript;
+import org.h2.tools.Script;
 
 /**
  * This sample application shows how to compact the database files.
@@ -27,6 +27,7 @@ public class Compact {
      * command line.
      *
      * @param args the command line parameters
+     * @throws Exception on failure
      */
     public static void main(String... args) throws Exception {
         DeleteDbFiles.execute("./data", "test", true);
@@ -49,6 +50,7 @@ public class Compact {
      * @param dbName the database name
      * @param user the user name
      * @param password the password
+     * @throws SQLException on failure
      */
     public static void compact(String dir, String dbName,
             String user, String password) throws SQLException {

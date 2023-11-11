@@ -1,5 +1,5 @@
 /*
- * Copyright 2004-2019 H2 Group. Multiple-Licensed under the MPL 2.0,
+ * Copyright 2004-2023 H2 Group. Multiple-Licensed under the MPL 2.0,
  * and the EPL 1.0 (https://h2database.com/html/license.html).
  * Initial Developer: H2 Group
  */
@@ -30,15 +30,11 @@ public class TestMergeUsing extends TestDb implements Trigger {
      * @param a ignored
      */
     public static void main(String... a) throws Exception {
-        TestBase.createCaller().init().test();
+        TestBase.createCaller().init().testFromMain();
     }
 
     @Override
     public boolean isEnabled() {
-        // TODO breaks in pagestore case
-        if (!config.mvStore) {
-            return false;
-        }
         return true;
     }
 
@@ -102,16 +98,6 @@ public class TestMergeUsing extends TestDb implements Trigger {
                 "SELECT X AS ID, 'Marcy'||X||X AS NAME FROM SYSTEM_RANGE(2,2) UNION ALL " +
                 "SELECT X AS ID, 'Marcy'||X AS NAME FROM SYSTEM_RANGE(3,3)",
                 3);
-        // No updates happen: No insert defined, no update or delete happens due
-        // to ON condition failing always, target table missing PK
-        testMergeUsing(
-                "CREATE TABLE PARENT AS (SELECT X AS ID, 'Marcy'||X AS NAME FROM SYSTEM_RANGE(1,2) );",
-                "MERGE INTO PARENT AS P USING (" +
-                "SELECT X AS ID, 'Marcy'||X AS NAME FROM SYSTEM_RANGE(1,3) ) AS S ON (P.ID = S.ID AND 1=0) " +
-                "WHEN MATCHED THEN " +
-                "UPDATE SET P.NAME = S.NAME||S.ID WHERE P.ID = 2 DELETE WHERE P.ID = 1",
-                GATHER_ORDERED_RESULTS_SQL,
-                "SELECT X AS ID, 'Marcy'||X AS NAME FROM SYSTEM_RANGE(1,2)", 0);
         // One insert, one update one delete happens, target table missing PK
         testMergeUsing(
                 "CREATE TABLE PARENT AS (SELECT X AS ID, 'Marcy'||X AS NAME FROM SYSTEM_RANGE(1,2) );" +
@@ -170,36 +156,6 @@ public class TestMergeUsing extends TestDb implements Trigger {
                 "SELECT X AS ID, 'Marcy'||X AS NAME FROM SYSTEM_RANGE(1,3) WHERE X<0",
                 0,
                 "WHEN\"");
-        // Two updates to same row - update and delete together - emptying the
-        // parent table
-        testMergeUsing(
-                "CREATE TABLE PARENT AS (SELECT X AS ID, 'Marcy'||X AS NAME FROM SYSTEM_RANGE(1,1) )",
-                "MERGE INTO PARENT AS P USING (" +
-                "SELECT X AS ID, 'Marcy'||X AS NAME FROM SYSTEM_RANGE(1,3) ) AS S ON (P.ID = S.ID) " +
-                "WHEN MATCHED THEN " +
-                "UPDATE SET P.NAME = P.NAME||S.ID WHERE P.ID = 1 DELETE WHERE P.ID = 1 AND P.NAME = 'Marcy11'",
-                GATHER_ORDERED_RESULTS_SQL,
-                "SELECT X AS ID, 'Marcy'||X AS NAME FROM SYSTEM_RANGE(1,1) WHERE X<0",
-                2);
-        // Duplicate source keys but different ROWID update - so no error
-        // SQL standard says duplicate or repeated updates of same row in same
-        // statement should cause errors - but because first row is updated,
-        // deleted (on source row 1) then inserted (on source row 2)
-        // it's considered different - with respect to ROWID - so no error
-        // One insert, one update one delete happens (on same row) , target
-        // table missing PK, no source or target alias
-        if (false) // TODO
-        testMergeUsing(
-                "CREATE TABLE PARENT AS (SELECT X AS ID, 'Marcy'||X AS NAME FROM SYSTEM_RANGE(1,1) );" +
-                "CREATE TABLE SOURCE AS (SELECT 1 AS ID, 'Marcy'||X AS NAME FROM SYSTEM_RANGE(1,2)  );",
-                "MERGE INTO PARENT USING SOURCE ON (PARENT.ID = SOURCE.ID) WHEN MATCHED THEN " +
-                "UPDATE SET PARENT.NAME = SOURCE.NAME||SOURCE.ID WHERE PARENT.ID = 2 " +
-                "DELETE WHERE PARENT.ID = 1 WHEN NOT MATCHED THEN " +
-                "INSERT (ID, NAME) VALUES (SOURCE.ID, SOURCE.NAME)",
-                GATHER_ORDERED_RESULTS_SQL,
-                "SELECT 1 AS ID, 'Marcy'||X||X UNION ALL SELECT 1 AS ID, 'Marcy2'",
-                2);
-
         // One insert, one update one delete happens, target table missing PK,
         // triggers update all NAME fields
         triggerTestingUpdateCount = 0;
@@ -215,6 +171,7 @@ public class TestMergeUsing extends TestDb implements Trigger {
                 "SELECT 2 AS ID, 'Marcy22-updated2' AS NAME UNION ALL " +
                 "SELECT X AS ID, 'Marcy'||X||'-inserted'||X AS NAME FROM SYSTEM_RANGE(3,4)",
                 4);
+        testDataChangeDeltaTable();
     }
 
     /**
@@ -234,7 +191,7 @@ public class TestMergeUsing extends TestDb implements Trigger {
             int expectedRowUpdateCount) throws Exception {
         deleteDb("mergeUsingQueries");
 
-        try (Connection conn = getConnection("mergeUsingQueries")) {
+        try (Connection conn = getConnection("mergeUsingQueries;MODE=Oracle")) {
             Statement stat = conn.createStatement();
             stat.execute(setupSQL);
 
@@ -312,16 +269,6 @@ public class TestMergeUsing extends TestDb implements Trigger {
     }
 
     @Override
-    public void close() {
-        // ignore
-    }
-
-    @Override
-    public void remove() {
-        // ignore
-    }
-
-    @Override
     public void init(Connection conn, String schemaName, String trigger,
             String tableName, boolean before, int type) {
         this.triggerName = trigger;
@@ -350,6 +297,30 @@ public class TestMergeUsing extends TestDb implements Trigger {
         buf.append("CREATE TRIGGER DEL_BEFORE " + "BEFORE DELETE ON PARENT "
                 + "FOR EACH ROW NOWAIT CALL \"" + getClass().getName() + "\";");
         return buf.toString();
+    }
+
+    private void testDataChangeDeltaTable() throws SQLException {
+        deleteDb("mergeUsingQueries");
+        try (Connection conn = getConnection("mergeUsingQueries")) {
+            Statement stat = conn.createStatement();
+            stat.execute("CREATE TABLE TEST(ID INT PRIMARY KEY, C INTEGER) AS (VALUES (1, 2), (2, 3), (3, 4))");
+            PreparedStatement prep = conn.prepareStatement("SELECT TEST.ID FROM FINAL TABLE ( "
+                    + "MERGE INTO TEST USING ( "
+                    + "SELECT T.ID, T.C FROM (SELECT 1, 3) T(ID, C) "
+                    + ") T ON TEST.ID = T.ID "
+                    + "WHEN MATCHED AND TEST.ID = 1 THEN "
+                    + "UPDATE SET C = T.C "
+                    + "WHEN NOT MATCHED THEN INSERT(ID, C) VALUES (T.ID, T.C) "
+                    + ") TEST");
+            ResultSet rs = prep.executeQuery();
+            rs.next();
+            assertEquals(1L, rs.getLong(1));
+            rs = prep.executeQuery();
+            rs.next();
+            assertEquals(1L, rs.getLong(1));
+        } finally {
+            deleteDb("mergeUsingQueries");
+        }
     }
 
 }

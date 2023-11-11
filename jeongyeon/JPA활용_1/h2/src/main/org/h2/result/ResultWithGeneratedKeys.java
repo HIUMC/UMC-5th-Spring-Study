@@ -1,5 +1,5 @@
 /*
- * Copyright 2004-2019 H2 Group. Multiple-Licensed under the MPL 2.0,
+ * Copyright 2004-2023 H2 Group. Multiple-Licensed under the MPL 2.0,
  * and the EPL 1.0 (https://h2database.com/html/license.html).
  * Initial Developer: H2 Group
  */
@@ -23,7 +23,7 @@ public class ResultWithGeneratedKeys {
          * @param generatedKeys
          *            generated keys
          */
-        public WithKeys(int updateCount, ResultInterface generatedKeys) {
+        public WithKeys(long updateCount, ResultInterface generatedKeys) {
             super(updateCount);
             this.generatedKeys = generatedKeys;
         }
@@ -41,13 +41,13 @@ public class ResultWithGeneratedKeys {
      *            update count
      * @return the result.
      */
-    public static ResultWithGeneratedKeys of(int updateCount) {
+    public static ResultWithGeneratedKeys of(long updateCount) {
         return new ResultWithGeneratedKeys(updateCount);
     }
 
-    private final int updateCount;
+    private final long updateCount;
 
-    ResultWithGeneratedKeys(int updateCount) {
+    ResultWithGeneratedKeys(long updateCount) {
         this.updateCount = updateCount;
     }
 
@@ -65,7 +65,7 @@ public class ResultWithGeneratedKeys {
      *
      * @return update count
      */
-    public int getUpdateCount() {
+    public long getUpdateCount() {
         return updateCount;
     }
 

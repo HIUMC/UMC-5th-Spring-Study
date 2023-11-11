@@ -1,5 +1,5 @@
 /*
- * Copyright 2004-2019 H2 Group. Multiple-Licensed under the MPL 2.0,
+ * Copyright 2004-2023 H2 Group. Multiple-Licensed under the MPL 2.0,
  * and the EPL 1.0 (https://h2database.com/html/license.html).
  * Initial Developer: H2 Group
  */
@@ -24,7 +24,7 @@ public class TestRecursiveQueries extends TestDb {
      * @param a ignored
      */
     public static void main(String... a) throws Exception {
-        TestBase.createCaller().init().test();
+        TestBase.createCaller().init().testFromMain();
     }
 
     @Override
@@ -99,9 +99,9 @@ public class TestRecursiveQueries extends TestDb {
         assertFalse(rs.next());
 
         prep = conn.prepareStatement("with recursive t(n) as " +
-                "(select @start union all select n+@inc from t where n<@end) " +
+                "(select @start union all select n+@inc from t where n<@end_index) " +
                 "select * from t");
-        prep2 = conn.prepareStatement("select @start:=?, @inc:=?, @end:=?");
+        prep2 = conn.prepareStatement("select @start:=?, @inc:=?, @end_index:=?");
         prep2.setInt(1, 10);
         prep2.setInt(2, 2);
         prep2.setInt(3, 14);

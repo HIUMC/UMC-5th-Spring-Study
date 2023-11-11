@@ -1,12 +1,14 @@
 /*
- * Copyright 2004-2019 H2 Group. Multiple-Licensed under the MPL 2.0,
+ * Copyright 2004-2023 H2 Group. Multiple-Licensed under the MPL 2.0,
  * and the EPL 1.0 (https://h2database.com/html/license.html).
  * Initial Developer: H2 Group
  */
 package org.h2.constraint;
 
+import java.util.ArrayList;
 import java.util.HashSet;
-import org.h2.engine.Session;
+import org.h2.engine.SessionLocal;
+import org.h2.engine.NullsDistinct;
 import org.h2.index.Index;
 import org.h2.result.Row;
 import org.h2.schema.Schema;
@@ -24,11 +26,13 @@ public class ConstraintUnique extends Constraint {
     private boolean indexOwner;
     private IndexColumn[] columns;
     private final boolean primaryKey;
+    private NullsDistinct nullsDistinct;
 
-    public ConstraintUnique(Schema schema, int id, String name, Table table,
-            boolean primaryKey) {
+    public ConstraintUnique(Schema schema, int id, String name, Table table, boolean primaryKey,
+            NullsDistinct nullsDistinct) {
         super(schema, id, name, table);
         this.primaryKey = primaryKey;
+        this.nullsDistinct = nullsDistinct;
     }
 
     @Override
@@ -43,7 +47,7 @@ public class ConstraintUnique extends Constraint {
 
     private String getCreateSQLForCopy(Table forTable, String quotedName, boolean internalIndex) {
         StringBuilder builder = new StringBuilder("ALTER TABLE ");
-        forTable.getSQL(builder, true).append(" ADD CONSTRAINT ");
+        forTable.getSQL(builder, DEFAULT_SQL_FLAGS).append(" ADD CONSTRAINT ");
         if (forTable.isHidden()) {
             builder.append("IF NOT EXISTS ");
         }
@@ -53,28 +57,22 @@ public class ConstraintUnique extends Constraint {
             StringUtils.quoteStringSQL(builder, comment);
         }
         builder.append(' ').append(getConstraintType().getSqlName()).append('(');
-        for (int i = 0, l = columns.length; i < l; i++) {
-            if (i > 0) {
-                builder.append(", ");
-            }
-            columns[i].column.getSQL(builder, true);
-        }
-        builder.append(')');
+        IndexColumn.writeColumns(builder, columns, DEFAULT_SQL_FLAGS).append(')');
         if (internalIndex && indexOwner && forTable == this.table) {
             builder.append(" INDEX ");
-            index.getSQL(builder, true);
+            index.getSQL(builder, DEFAULT_SQL_FLAGS);
         }
         return builder.toString();
     }
 
     @Override
     public String getCreateSQLWithoutIndexes() {
-        return getCreateSQLForCopy(table, getSQL(true), false);
+        return getCreateSQLForCopy(table, getSQL(DEFAULT_SQL_FLAGS), false);
     }
 
     @Override
     public String getCreateSQL() {
-        return getCreateSQLForCopy(table, getSQL(true));
+        return getCreateSQLForCopy(table, getSQL(DEFAULT_SQL_FLAGS));
     }
 
     public void setColumns(IndexColumn[] columns) {
@@ -98,7 +96,16 @@ public class ConstraintUnique extends Constraint {
     }
 
     @Override
-    public void removeChildrenAndResources(Session session) {
+    public void removeChildrenAndResources(SessionLocal session) {
+        ArrayList<Constraint> constraints = table.getConstraints();
+        if (constraints != null) {
+            constraints = new ArrayList<>(table.getConstraints());
+            for (Constraint c : constraints) {
+                if (c.getReferencedConstraint() == this) {
+                    database.removeSchemaObject(session, c);
+                }
+            }
+        }
         table.removeConstraint(this);
         if (indexOwner) {
             table.removeIndexOrTransferOwnership(session, index);
@@ -111,7 +118,7 @@ public class ConstraintUnique extends Constraint {
     }
 
     @Override
-    public void checkRow(Session session, Table t, Row oldRow, Row newRow) {
+    public void checkRow(SessionLocal session, Table t, Row oldRow, Row newRow) {
         // unique index check is enough
     }
 
@@ -140,19 +147,26 @@ public class ConstraintUnique extends Constraint {
     }
 
     @Override
-    public void checkExistingData(Session session) {
+    public void checkExistingData(SessionLocal session) {
         // no need to check: when creating the unique index any problems are
         // found
     }
 
     @Override
-    public Index getUniqueIndex() {
+    public Index getIndex() {
         return index;
     }
 
     @Override
     public void rebuild() {
         // nothing to do
+    }
+
+    /**
+     * @return are nulls distinct
+     */
+    public NullsDistinct getNullsDistinct() {
+        return nullsDistinct;
     }
 
 }

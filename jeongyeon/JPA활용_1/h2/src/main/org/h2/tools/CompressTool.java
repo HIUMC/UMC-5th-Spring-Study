@@ -1,5 +1,5 @@
 /*
- * Copyright 2004-2019 H2 Group. Multiple-Licensed under the MPL 2.0,
+ * Copyright 2004-2023 H2 Group. Multiple-Licensed under the MPL 2.0,
  * and the EPL 1.0 (https://h2database.com/html/license.html).
  * Initial Developer: H2 Group
  */
@@ -34,9 +34,9 @@ import org.h2.util.Utils;
  */
 public class CompressTool {
 
-    private static final int MAX_BUFFER_SIZE =
-            3 * Constants.IO_BUFFER_SIZE_COMPRESS;
-    private byte[] cachedBuffer;
+    private static final int MAX_BUFFER_SIZE = 3 * Constants.IO_BUFFER_SIZE_COMPRESS;
+
+    private byte[] buffer;
 
     private CompressTool() {
         // don't allow construction
@@ -46,10 +46,10 @@ public class CompressTool {
         if (min > MAX_BUFFER_SIZE) {
             return Utils.newBytes(min);
         }
-        if (cachedBuffer == null || cachedBuffer.length < min) {
-            cachedBuffer = Utils.newBytes(min);
+        if (buffer == null || buffer.length < min) {
+            buffer = Utils.newBytes(min);
         }
-        return cachedBuffer;
+        return buffer;
     }
 
     /**
@@ -84,10 +84,9 @@ public class CompressTool {
 
     private static int compress(byte[] in, int len, Compressor compress,
             byte[] out) {
-        int newLen = 0;
         out[0] = (byte) compress.getAlgorithm();
         int start = 1 + writeVariableInt(out, 1, len);
-        newLen = compress.compress(in, len, out, start);
+        int newLen = compress.compress(in, 0, len, out, start);
         if (newLen > len + start || newLen <= 0) {
             out[0] = Compressor.NO;
             System.arraycopy(in, 0, out, start, len);
@@ -103,6 +102,9 @@ public class CompressTool {
      * @return the uncompressed data
      */
     public byte[] expand(byte[] in) {
+        if (in.length == 0) {
+            throw DbException.get(ErrorCode.COMPRESSION_ERROR);
+        }
         int algorithm = in[0];
         Compressor compress = getCompressor(algorithm);
         try {
@@ -118,6 +120,9 @@ public class CompressTool {
 
     /**
      * INTERNAL
+     * @param in compressed data
+     * @param out uncompressed result
+     * @param outPos the offset at the output array
      */
     public static void expand(byte[] in, byte[] out, int outPos) {
         int algorithm = in[0];
@@ -237,8 +242,10 @@ public class CompressTool {
 
     /**
      * INTERNAL
+     * @param algorithm to translate into index
+     * @return index of the specified algorithm
      */
-    public static int getCompressAlgorithm(String algorithm) {
+    private static int getCompressAlgorithm(String algorithm) {
         algorithm = StringUtils.toUpperEnglish(algorithm);
         if ("NO".equals(algorithm)) {
             return Compressor.NO;
@@ -270,6 +277,10 @@ public class CompressTool {
 
     /**
      * INTERNAL
+     * @param out stream
+     * @param compressionAlgorithm to be used
+     * @param entryName in a zip file
+     * @return compressed stream
      */
     public static OutputStream wrapOutputStream(OutputStream out,
             String compressionAlgorithm, String entryName) {
@@ -297,6 +308,10 @@ public class CompressTool {
 
     /**
      * INTERNAL
+     * @param in stream
+     * @param compressionAlgorithm to be used
+     * @param entryName in a zip file
+     * @return in stream or null if there is no such entry
      */
     public static InputStream wrapInputStream(InputStream in,
             String compressionAlgorithm, String entryName) {

@@ -1,20 +1,24 @@
 /*
- * Copyright 2004-2019 H2 Group. Multiple-Licensed under the MPL 2.0,
+ * Copyright 2004-2023 H2 Group. Multiple-Licensed under the MPL 2.0,
  * and the EPL 1.0 (https://h2database.com/html/license.html).
  * Initial Developer: H2 Group
  */
 package org.h2.server.web;
 
-import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.sql.Connection;
 import java.sql.SQLException;
-import java.text.SimpleDateFormat;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -33,7 +37,6 @@ import org.h2.security.SHA256;
 import org.h2.server.Service;
 import org.h2.server.ShutdownHandler;
 import org.h2.store.fs.FileUtils;
-import org.h2.util.DateTimeUtils;
 import org.h2.util.JdbcUtils;
 import org.h2.util.MathUtils;
 import org.h2.util.NetUtils;
@@ -108,13 +111,15 @@ public class WebServer implements Service {
                 "jdbc:sqlserver://localhost;DatabaseName=test|sa",
         "Generic PostgreSQL|org.postgresql.Driver|" +
                 "jdbc:postgresql:test|" ,
-        "Generic MySQL|com.mysql.jdbc.Driver|" +
+        "Generic MySQL|com.mysql.cj.jdbc.Driver|" +
                 "jdbc:mysql://localhost:3306/test|" ,
+        "Generic MariaDB|org.mariadb.jdbc.Driver|" +
+                "jdbc:mariadb://localhost:3306/test|" ,
         "Generic HSQLDB|org.hsqldb.jdbcDriver|" +
                 "jdbc:hsqldb:test;hsqldb.default_table_type=cached|sa" ,
-        "Generic Derby (Server)|org.apache.derby.jdbc.ClientDriver|" +
+        "Generic Derby (Server)|org.apache.derby.client.ClientAutoloadedDriver|" +
                 "jdbc:derby://localhost:1527/test;create=true|sa",
-        "Generic Derby (Embedded)|org.apache.derby.jdbc.EmbeddedDriver|" +
+        "Generic Derby (Embedded)|org.apache.derby.iapi.jdbc.AutoloadedDriver|" +
                 "jdbc:derby:test;create=true|sa",
         "Generic H2 (Server)|org.h2.Driver|" +
                 "jdbc:h2:tcp://localhost/~/test|sa",
@@ -154,9 +159,10 @@ public class WebServer implements Service {
     // private URLClassLoader urlClassLoader;
     private int port;
     private boolean allowOthers;
+    private String externalNames;
     private boolean isDaemon;
     private final Set<WebThread> running =
-            Collections.synchronizedSet(new HashSet<WebThread>());
+            Collections.synchronizedSet(new HashSet<>());
     private boolean ssl;
     private byte[] adminPassword;
     private final HashMap<String, ConnectionInfo> connInfoMap = new HashMap<>();
@@ -166,10 +172,12 @@ public class WebServer implements Service {
     private final HashSet<String> languages = new HashSet<>();
     private String startDateTime;
     private ServerSocket serverSocket;
+    private String host;
     private String url;
     private ShutdownHandler shutdownHandler;
     private Thread listenerThread;
     private boolean ifExists = true;
+    boolean virtualThreads;
     private String key;
     private boolean allowSecureCreation;
     private boolean trace;
@@ -184,6 +192,7 @@ public class WebServer implements Service {
      *
      * @param file the file name
      * @return the data
+     * @throws IOException on failure
      */
     byte[] getFile(String file) throws IOException {
         trace("getFile <" + file + ">");
@@ -262,10 +271,8 @@ public class WebServer implements Service {
 
     String getStartDateTime() {
         if (startDateTime == null) {
-            SimpleDateFormat format = new SimpleDateFormat(
-                    "EEE, d MMM yyyy HH:mm:ss z", new Locale("en", ""));
-            format.setTimeZone(DateTimeUtils.UTC);
-            startDateTime = format.format(System.currentTimeMillis());
+            startDateTime = DateTimeFormatter.ofPattern("EEE, d MMM yyyy HH:mm:ss z", Locale.ENGLISH)
+                .format(ZonedDateTime.now(ZoneId.of("UTC")));
         }
         return startDateTime;
     }
@@ -315,6 +322,7 @@ public class WebServer implements Service {
                 "webSSL", false);
         allowOthers = SortedProperties.getBooleanProperty(prop,
                 "webAllowOthers", false);
+        setExternalNames(SortedProperties.getStringProperty(prop, "webExternalNames", null));
         setAdminPassword(SortedProperties.getStringProperty(prop, "webAdminPassword", null));
         commandHistoryString = prop.getProperty(COMMAND_HISTORY);
         for (int i = 0; args != null && i < args.length; i++) {
@@ -325,8 +333,12 @@ public class WebServer implements Service {
                 ssl = true;
             } else if (Tool.isOption(a, "-webAllowOthers")) {
                 allowOthers = true;
+            }  else if (Tool.isOption(a, "-webExternalNames")) {
+                setExternalNames(args[++i]);
             } else if (Tool.isOption(a, "-webDaemon")) {
                 isDaemon = true;
+            } else if (Tool.isOption(a,  "-webVirtualThreads")) {
+                virtualThreads = Utils.parseBoolean(args[++i], virtualThreads, true);
             } else if (Tool.isOption(a, "-baseDir")) {
                 String baseDir = args[++i];
                 SysProperties.setBaseDir(baseDir);
@@ -371,11 +383,22 @@ public class WebServer implements Service {
         return url;
     }
 
+    /**
+     * @return host name
+     */
+    public String getHost() {
+        if (host == null) {
+            updateURL();
+        }
+        return host;
+    }
+
     private void updateURL() {
         try {
+            host = StringUtils.toLowerEnglish(NetUtils.getLocalAddress());
             StringBuilder builder = new StringBuilder(ssl ? "https" : "http").append("://")
-                    .append(NetUtils.getLocalAddress()).append(':').append(port);
-            if (key != null) {
+                    .append(host).append(':').append(port);
+            if (key != null && serverSocket != null) {
                 builder.append("?key=").append(key);
             }
             url = builder.toString();
@@ -502,8 +525,9 @@ public class WebServer implements Service {
         try {
             trace("translation: "+language);
             byte[] trans = getFile("_text_"+language+".prop");
-            trace("  "+new String(trans));
-            text = SortedProperties.fromLines(new String(trans, StandardCharsets.UTF_8));
+            String s = new String(trans, StandardCharsets.UTF_8);
+            trace("  " + s);
+            text = SortedProperties.fromLines(s);
             // remove starting # (if not translated yet)
             for (Entry<Object, Object> entry : text.entrySet()) {
                 String value = (String) entry.getValue();
@@ -545,6 +569,14 @@ public class WebServer implements Service {
     @Override
     public boolean getAllowOthers() {
         return allowOthers;
+    }
+
+    void setExternalNames(String externalNames) {
+        this.externalNames = externalNames != null ? StringUtils.toLowerEnglish(externalNames) : null;
+    }
+
+    String getExternalNames() {
+        return externalNames;
     }
 
     void setSSL(boolean b) {
@@ -727,6 +759,9 @@ public class WebServer implements Service {
                         Integer.toString(SortedProperties.getIntProperty(old, "webPort", port)));
                 prop.setProperty("webAllowOthers",
                         Boolean.toString(SortedProperties.getBooleanProperty(old, "webAllowOthers", allowOthers)));
+                if (externalNames != null) {
+                    prop.setProperty("webExternalNames", externalNames);
+                }
                 prop.setProperty("webSSL",
                         Boolean.toString(SortedProperties.getBooleanProperty(old, "webSSL", ssl)));
                 if (adminPassword != null) {
@@ -765,24 +800,16 @@ public class WebServer implements Service {
      * @param userKey the key of privileged user
      * @param networkConnectionInfo the network connection information
      * @return the database connection
+     * @throws SQLException on failure
      */
     Connection getConnection(String driver, String databaseUrl, String user,
             String password, String userKey, NetworkConnectionInfo networkConnectionInfo) throws SQLException {
         driver = driver.trim();
         databaseUrl = databaseUrl.trim();
-        Properties p = new Properties();
-        p.setProperty("user", user.trim());
         // do not trim the password, otherwise an
         // encrypted H2 database with empty user password doesn't work
-        p.setProperty("password", password);
-        if (databaseUrl.startsWith("jdbc:h2:")) {
-            if (!allowSecureCreation || key == null || !key.equals(userKey)) {
-                if (ifExists) {
-                    databaseUrl += ";FORBID_CREATION=TRUE";
-                }
-            }
-        }
-        return JdbcUtils.getConnection(driver, databaseUrl, p, networkConnectionInfo);
+        return JdbcUtils.getConnection(driver, databaseUrl, user.trim(), password, networkConnectionInfo,
+                ifExists && (!allowSecureCreation || key == null || !key.equals(userKey)));
     }
 
     /**
@@ -803,6 +830,7 @@ public class WebServer implements Service {
      *
      * @param conn the connection
      * @return the URL of the web site to access this connection
+     * @throws SQLException on failure
      */
     public String addSession(Connection conn) throws SQLException {
         WebSession session = createNewSession("local");
@@ -819,7 +847,7 @@ public class WebServer implements Service {
      */
     private class TranslateThread extends Thread {
 
-        private final File file = new File("translation.properties");
+        private final Path file = Paths.get("translation.properties");
         private final Map<Object, Object> translation;
         private volatile boolean stopNow;
 
@@ -828,7 +856,7 @@ public class WebServer implements Service {
         }
 
         public String getFileName() {
-            return file.getAbsolutePath();
+            return file.toAbsolutePath().toString();
         }
 
         public void stopNow() {
@@ -845,12 +873,12 @@ public class WebServer implements Service {
             while (!stopNow) {
                 try {
                     SortedProperties sp = new SortedProperties();
-                    if (file.exists()) {
-                        InputStream in = FileUtils.newInputStream(file.getName());
+                    if (Files.exists(file)) {
+                        InputStream in = Files.newInputStream(file);
                         sp.load(in);
                         translation.putAll(sp);
                     } else {
-                        OutputStream out = FileUtils.newOutputStream(file.getName(), false);
+                        OutputStream out = Files.newOutputStream(file);
                         sp.putAll(translation);
                         sp.store(out, "Translation");
                     }
@@ -901,17 +929,32 @@ public class WebServer implements Service {
             adminPassword = null;
             return;
         }
-        if (password.length() == 128) {
-            try {
-                adminPassword = StringUtils.convertHexToBytes(password);
-                return;
-            } catch (Exception ex) {}
+        if (password.length() != 128) {
+            throw new IllegalArgumentException(
+                    "Use result of org.h2.server.web.WebServer.encodeAdminPassword(String)");
+        }
+        adminPassword = StringUtils.convertHexToBytes(password);
+    }
+
+    /**
+     * Generates a random salt and returns it with a hash of specified password
+     * with this salt.
+     *
+     * @param password
+     *            the password
+     * @return a salt and hash of salted password as a hex encoded string to be
+     *         used in configuration file
+     * @throws IllegalArgumentException when password is too short
+     */
+    public static String encodeAdminPassword(String password) {
+        if (password.length() < Constants.MIN_WEB_ADMIN_PASSWORD_LENGTH) {
+            throw new IllegalArgumentException("Min length: " + Constants.MIN_WEB_ADMIN_PASSWORD_LENGTH);
         }
         byte[] salt = MathUtils.secureRandomBytes(32);
         byte[] hash = SHA256.getHashWithSalt(password.getBytes(StandardCharsets.UTF_8), salt);
         byte[] total = Arrays.copyOf(salt, 64);
         System.arraycopy(hash, 0, total, 32, 32);
-        adminPassword = total;
+        return StringUtils.convertBytesToHex(total);
     }
 
     /**

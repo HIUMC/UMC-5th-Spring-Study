@@ -1,5 +1,5 @@
 /*
- * Copyright 2004-2019 H2 Group. Multiple-Licensed under the MPL 2.0,
+ * Copyright 2004-2023 H2 Group. Multiple-Licensed under the MPL 2.0,
  * and the EPL 1.0 (https://h2database.com/html/license.html).
  * Initial Developer: H2 Group
  */
@@ -10,7 +10,7 @@ import java.util.ArrayList;
 import org.h2.api.ErrorCode;
 import org.h2.command.CommandInterface;
 import org.h2.engine.Constants;
-import org.h2.engine.Session;
+import org.h2.engine.SessionLocal;
 import org.h2.message.DbException;
 import org.h2.schema.Schema;
 import org.h2.schema.Sequence;
@@ -23,7 +23,7 @@ public abstract class CommandWithColumns extends SchemaCommand {
 
     private AlterTableAddConstraint primaryKey;
 
-    protected CommandWithColumns(Session session, Schema schema) {
+    protected CommandWithColumns(SessionLocal session, Schema schema) {
         super(session, schema);
     }
 
@@ -86,7 +86,7 @@ public abstract class CommandWithColumns extends SchemaCommand {
     }
 
     /**
-     * For the given list of columns, create sequences for auto-increment
+     * For the given list of columns, create sequences for identity
      * columns (if needed), and then get the list of all sequences of the
      * columns.
      *
@@ -98,11 +98,11 @@ public abstract class CommandWithColumns extends SchemaCommand {
         ArrayList<Sequence> sequences = new ArrayList<>(columns == null ? 0 : columns.size());
         if (columns != null) {
             for (Column c : columns) {
-                if (c.isAutoIncrement()) {
-                    int objId = session.getDatabase().allocateObjectId();
-                    c.convertAutoIncrementToSequence(session, getSchema(), objId, temporary);
-                    if (!Constants.CLUSTERING_DISABLED.equals(session.getDatabase().getCluster())) {
-                        throw DbException.getUnsupportedException("CLUSTERING && auto-increment columns");
+                if (c.hasIdentityOptions()) {
+                    int objId = getDatabase().allocateObjectId();
+                    c.initializeSequence(session, getSchema(), objId, temporary);
+                    if (!Constants.CLUSTERING_DISABLED.equals(getDatabase().getCluster())) {
+                        throw DbException.getUnsupportedException("CLUSTERING && identity columns");
                     }
                 }
                 Sequence seq = c.getSequence();

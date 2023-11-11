@@ -1,5 +1,5 @@
 /*
- * Copyright 2004-2019 H2 Group. Multiple-Licensed under the MPL 2.0,
+ * Copyright 2004-2023 H2 Group. Multiple-Licensed under the MPL 2.0,
  * and the EPL 1.0 (https://h2database.com/html/license.html).
  * Initial Developer: H2 Group
  */
@@ -11,10 +11,10 @@ import java.sql.DriverPropertyInfo;
 import java.sql.SQLException;
 import java.util.Properties;
 import java.util.logging.Logger;
+import org.h2.api.ErrorCode;
 import org.h2.engine.Constants;
 import org.h2.jdbc.JdbcConnection;
 import org.h2.message.DbException;
-import org.h2.upgrade.DbUpgrade;
 
 /**
  * The database driver. An application should not use this class directly. The
@@ -49,26 +49,18 @@ public class Driver implements java.sql.Driver, JdbcDriverBackwardsCompat {
      * @param url the database URL
      * @param info the connection properties
      * @return the new connection or null if the URL is not supported
+     * @throws SQLException on connection exception or if URL is {@code null}
      */
     @Override
     public Connection connect(String url, Properties info) throws SQLException {
-        try {
-            if (info == null) {
-                info = new Properties();
-            }
-            if (!acceptsURL(url)) {
-                return null;
-            }
-            if (url.equals(DEFAULT_URL)) {
-                return DEFAULT_CONNECTION.get();
-            }
-            Connection c = DbUpgrade.connectOrUpgrade(url, info);
-            if (c != null) {
-                return c;
-            }
-            return new JdbcConnection(url, info);
-        } catch (Exception e) {
-            throw DbException.toSQLException(e);
+        if (url == null) {
+            throw DbException.getJdbcSQLException(ErrorCode.URL_FORMAT_ERROR_2, null, Constants.URL_FORMAT, null);
+        } else if (url.startsWith(Constants.START_URL)) {
+            return new JdbcConnection(url, info, null, null, false);
+        } else if (url.equals(DEFAULT_URL)) {
+            return DEFAULT_CONNECTION.get();
+        } else {
+            return null;
         }
     }
 
@@ -78,17 +70,19 @@ public class Driver implements java.sql.Driver, JdbcDriverBackwardsCompat {
      *
      * @param url the database URL
      * @return if the driver understands the URL
+     * @throws SQLException if URL is {@code null}
      */
     @Override
-    public boolean acceptsURL(String url) {
-        if (url != null) {
-            if (url.startsWith(Constants.START_URL)) {
-                return true;
-            } else if (url.equals(DEFAULT_URL)) {
-                return DEFAULT_CONNECTION.get() != null;
-            }
+    public boolean acceptsURL(String url) throws SQLException {
+        if (url == null) {
+            throw DbException.getJdbcSQLException(ErrorCode.URL_FORMAT_ERROR_2, null, Constants.URL_FORMAT, null);
+        } else if (url.startsWith(Constants.START_URL)) {
+            return true;
+        } else if (url.equals(DEFAULT_URL)) {
+            return DEFAULT_CONNECTION.get() != null;
+        } else {
+            return false;
         }
-        return false;
     }
 
     /**
@@ -147,6 +141,7 @@ public class Driver implements java.sql.Driver, JdbcDriverBackwardsCompat {
 
     /**
      * INTERNAL
+     * @return instance of the driver registered with the DriverManager
      */
     public static synchronized Driver load() {
         try {
@@ -178,6 +173,7 @@ public class Driver implements java.sql.Driver, JdbcDriverBackwardsCompat {
      * INTERNAL
      * Sets, on a per-thread basis, the default-connection for
      * user-defined functions.
+     * @param c to set default to
      */
     public static void setDefaultConnection(Connection c) {
         if (c == null) {
@@ -189,6 +185,7 @@ public class Driver implements java.sql.Driver, JdbcDriverBackwardsCompat {
 
     /**
      * INTERNAL
+     * @param thread to set context class loader for
      */
     public static void setThreadContextClassLoader(Thread thread) {
         // Apache Tomcat: use the classloader of the driver to avoid the

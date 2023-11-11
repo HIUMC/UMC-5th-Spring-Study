@@ -1,5 +1,5 @@
 /*
- * Copyright 2004-2019 H2 Group. Multiple-Licensed under the MPL 2.0,
+ * Copyright 2004-2023 H2 Group. Multiple-Licensed under the MPL 2.0,
  * and the EPL 1.0 (https://h2database.com/html/license.html).
  * Initial Developer: H2 Group
  */
@@ -8,13 +8,6 @@ package org.h2.value;
 import java.io.InputStream;
 import java.io.Reader;
 import java.math.BigDecimal;
-import java.sql.Date;
-import java.sql.PreparedStatement;
-import java.sql.SQLException;
-import java.sql.Time;
-import java.sql.Timestamp;
-import java.sql.Types;
-import java.util.TimeZone;
 
 import org.h2.engine.CastDataProvider;
 import org.h2.message.DbException;
@@ -22,7 +15,7 @@ import org.h2.message.DbException;
 /**
  * Implementation of NULL. NULL is not a regular data type.
  */
-public class ValueNull extends Value {
+public final class ValueNull extends Value {
 
     /**
      * The main NULL instance.
@@ -44,7 +37,7 @@ public class ValueNull extends Value {
     }
 
     @Override
-    public StringBuilder getSQL(StringBuilder builder) {
+    public StringBuilder getSQL(StringBuilder builder, int sqlFlags) {
         return builder.append("NULL");
     }
 
@@ -70,22 +63,12 @@ public class ValueNull extends Value {
     }
 
     @Override
-    public boolean getBoolean() {
-        return false;
-    }
-
-    @Override
-    public Date getDate(TimeZone timeZone) {
+    public Reader getReader() {
         return null;
     }
 
     @Override
-    public Time getTime(TimeZone timeZone) {
-        return null;
-    }
-
-    @Override
-    public Timestamp getTimestamp(TimeZone timeZone) {
+    public Reader getReader(long oneBasedOffset, long length) {
         return null;
     }
 
@@ -95,13 +78,38 @@ public class ValueNull extends Value {
     }
 
     @Override
+    public InputStream getInputStream() {
+        return null;
+    }
+
+    @Override
+    public InputStream getInputStream(long oneBasedOffset, long length) {
+        return null;
+    }
+
+    @Override
+    public boolean getBoolean() {
+        throw DbException.getInternalError();
+    }
+
+    @Override
     public byte getByte() {
-        return 0;
+        throw DbException.getInternalError();
     }
 
     @Override
     public short getShort() {
-        return 0;
+        throw DbException.getInternalError();
+    }
+
+    @Override
+    public int getInt() {
+        throw DbException.getInternalError();
+    }
+
+    @Override
+    public long getLong() {
+        throw DbException.getInternalError();
     }
 
     @Override
@@ -110,44 +118,18 @@ public class ValueNull extends Value {
     }
 
     @Override
-    public double getDouble() {
-        return 0.0;
-    }
-
-    @Override
     public float getFloat() {
-        return 0.0F;
+        throw DbException.getInternalError();
     }
 
     @Override
-    public int getInt() {
-        return 0;
-    }
-
-    @Override
-    public long getLong() {
-        return 0;
-    }
-
-    @Override
-    public InputStream getInputStream() {
-        return null;
-    }
-
-    @Override
-    public Reader getReader() {
-        return null;
-    }
-
-    @Override
-    protected Value convertTo(int targetType, ExtTypeInfo extTypeInfo, CastDataProvider provider,
-            boolean forComparison, Object column) {
-        return this;
+    public double getDouble() {
+        throw DbException.getInternalError();
     }
 
     @Override
     public int compareTypeSafe(Value v, CompareMode mode, CastDataProvider provider) {
-        throw DbException.throwInternalError("compare null");
+        throw DbException.getInternalError("compare null");
     }
 
     @Override
@@ -158,17 +140,6 @@ public class ValueNull extends Value {
     @Override
     public int hashCode() {
         return 0;
-    }
-
-    @Override
-    public Object getObject() {
-        return null;
-    }
-
-    @Override
-    public void set(PreparedStatement prep, int parameterIndex)
-            throws SQLException {
-        prep.setNull(parameterIndex, Types.NULL);
     }
 
     @Override

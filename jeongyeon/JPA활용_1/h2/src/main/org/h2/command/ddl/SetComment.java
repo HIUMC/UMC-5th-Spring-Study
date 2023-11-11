@@ -1,5 +1,5 @@
 /*
- * Copyright 2004-2019 H2 Group. Multiple-Licensed under the MPL 2.0,
+ * Copyright 2004-2023 H2 Group. Multiple-Licensed under the MPL 2.0,
  * and the EPL 1.0 (https://h2database.com/html/license.html).
  * Initial Developer: H2 Group
  */
@@ -10,9 +10,10 @@ import org.h2.command.CommandInterface;
 import org.h2.engine.Comment;
 import org.h2.engine.Database;
 import org.h2.engine.DbObject;
-import org.h2.engine.Session;
+import org.h2.engine.SessionLocal;
 import org.h2.expression.Expression;
 import org.h2.message.DbException;
+import org.h2.schema.Schema;
 import org.h2.table.Table;
 
 /**
@@ -28,69 +29,97 @@ public class SetComment extends DefineCommand {
     private int objectType;
     private Expression expr;
 
-    public SetComment(Session session) {
+    public SetComment(SessionLocal session) {
         super(session);
     }
 
     @Override
-    public int update() {
-        session.commit(true);
-        Database db = session.getDatabase();
-        session.getUser().checkAdmin();
+    public long update() {
+        Database db = getDatabase();
         DbObject object = null;
         int errorCode = ErrorCode.GENERAL_ERROR_1;
         if (schemaName == null) {
             schemaName = session.getCurrentSchemaName();
         }
         switch (objectType) {
-        case DbObject.CONSTANT:
-            object = db.getSchema(schemaName).getConstant(objectName);
+        case DbObject.CONSTANT: {
+            Schema schema = db.getSchema(schemaName);
+            session.getUser().checkSchemaOwner(schema);
+            object = schema.getConstant(objectName);
             break;
-        case DbObject.CONSTRAINT:
-            object = db.getSchema(schemaName).getConstraint(objectName);
+        }
+        case DbObject.CONSTRAINT: {
+            Schema schema = db.getSchema(schemaName);
+            session.getUser().checkSchemaOwner(schema);
+            object = schema.getConstraint(objectName);
             break;
-        case DbObject.FUNCTION_ALIAS:
-            object = db.getSchema(schemaName).findFunction(objectName);
+        }
+        case DbObject.FUNCTION_ALIAS: {
+            Schema schema = db.getSchema(schemaName);
+            session.getUser().checkSchemaOwner(schema);
+            object = schema.findFunction(objectName);
             errorCode = ErrorCode.FUNCTION_ALIAS_NOT_FOUND_1;
             break;
-        case DbObject.INDEX:
-            object = db.getSchema(schemaName).getIndex(objectName);
+        }
+        case DbObject.INDEX: {
+            Schema schema = db.getSchema(schemaName);
+            session.getUser().checkSchemaOwner(schema);
+            object = schema.getIndex(objectName);
             break;
+        }
         case DbObject.ROLE:
+            session.getUser().checkAdmin();
             schemaName = null;
             object = db.findRole(objectName);
             errorCode = ErrorCode.ROLE_NOT_FOUND_1;
             break;
-        case DbObject.SCHEMA:
+        case DbObject.SCHEMA: {
             schemaName = null;
-            object = db.findSchema(objectName);
-            errorCode = ErrorCode.SCHEMA_NOT_FOUND_1;
+            Schema schema = db.getSchema(objectName);
+            session.getUser().checkSchemaOwner(schema);
+            object = schema;
             break;
-        case DbObject.SEQUENCE:
-            object = db.getSchema(schemaName).getSequence(objectName);
+        }
+        case DbObject.SEQUENCE: {
+            Schema schema = db.getSchema(schemaName);
+            session.getUser().checkSchemaOwner(schema);
+            object = schema.getSequence(objectName);
             break;
-        case DbObject.TABLE_OR_VIEW:
-            object = db.getSchema(schemaName).getTableOrView(session, objectName);
+        }
+        case DbObject.TABLE_OR_VIEW: {
+            Schema schema = db.getSchema(schemaName);
+            session.getUser().checkSchemaOwner(schema);
+            object = schema.getTableOrView(session, objectName);
             break;
-        case DbObject.TRIGGER:
-            object = db.getSchema(schemaName).findTrigger(objectName);
+        }
+        case DbObject.TRIGGER: {
+            Schema schema = db.getSchema(schemaName);
+            session.getUser().checkSchemaOwner(schema);
+            object = schema.findTrigger(objectName);
             errorCode = ErrorCode.TRIGGER_NOT_FOUND_1;
             break;
+        }
         case DbObject.USER:
+            session.getUser().checkAdmin();
             schemaName = null;
             object = db.getUser(objectName);
             break;
-        case DbObject.DOMAIN:
-            schemaName = null;
-            object = db.findDomain(objectName);
-            errorCode = ErrorCode.DOMAIN_ALREADY_EXISTS_1;
+        case DbObject.DOMAIN: {
+            Schema schema = db.getSchema(schemaName);
+            session.getUser().checkSchemaOwner(schema);
+            object = schema.findDomain(objectName);
+            errorCode = ErrorCode.DOMAIN_NOT_FOUND_1;
             break;
+        }
         default:
         }
         if (object == null) {
             throw DbException.get(errorCode, objectName);
         }
         String text = expr.optimize(session).getValue(session).getString();
+        if (text != null && text.isEmpty()) {
+            text = null;
+        }
         if (column) {
             Table table = (Table) object;
             table.getColumn(columnName).setComment(text);

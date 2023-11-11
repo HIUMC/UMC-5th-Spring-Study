@@ -1,26 +1,21 @@
 /*
- * Copyright 2004-2019 H2 Group. Multiple-Licensed under the MPL 2.0,
+ * Copyright 2004-2023 H2 Group. Multiple-Licensed under the MPL 2.0,
  * and the EPL 1.0 (https://h2database.com/html/license.html).
  * Initial Developer: H2 Group
  */
 package org.h2.value;
 
-import java.sql.PreparedStatement;
-import java.sql.SQLException;
-import java.sql.Time;
-import java.sql.Types;
-import java.util.TimeZone;
 import org.h2.api.ErrorCode;
 import org.h2.engine.CastDataProvider;
 import org.h2.message.DbException;
 import org.h2.util.DateTimeUtils;
-import org.h2.util.JSR310;
-import org.h2.util.JSR310Utils;
+
+import static org.h2.util.DateTimeUtils.NANOS_PER_HOUR;
 
 /**
  * Implementation of the TIME data type.
  */
-public class ValueTime extends Value {
+public final class ValueTime extends Value {
 
     /**
      * The default precision and display size of the textual representation of a time.
@@ -37,17 +32,27 @@ public class ValueTime extends Value {
     /**
      * The default scale for time.
      */
-    static final int DEFAULT_SCALE = 0;
+    public static final int DEFAULT_SCALE = 0;
 
     /**
      * The maximum scale for time.
      */
     public static final int MAXIMUM_SCALE = 9;
 
+    private static final ValueTime[] STATIC_CACHE;
+
     /**
      * Nanoseconds since midnight
      */
     private final long nanos;
+
+    static {
+        ValueTime[] cache = new ValueTime[24];
+        for (int hour = 0; hour < 24; hour++) {
+            cache[hour] = new ValueTime(hour * NANOS_PER_HOUR);
+        }
+        STATIC_CACHE = cache;
+    }
 
     /**
      * @param nanos nanoseconds since midnight
@@ -64,36 +69,27 @@ public class ValueTime extends Value {
      */
     public static ValueTime fromNanos(long nanos) {
         if (nanos < 0L || nanos >= DateTimeUtils.NANOS_PER_DAY) {
-            StringBuilder builder = new StringBuilder();
-            DateTimeUtils.appendTime(builder, nanos);
-            throw DbException.get(ErrorCode.INVALID_DATETIME_CONSTANT_2,
-                    "TIME", builder.toString());
+            throw DbException.get(ErrorCode.INVALID_DATETIME_CONSTANT_2, "TIME",
+                    DateTimeUtils.appendTime(new StringBuilder(), nanos).toString());
+        }
+        if (nanos % NANOS_PER_HOUR == 0L) {
+            return STATIC_CACHE[(int) (nanos / NANOS_PER_HOUR)];
         }
         return (ValueTime) Value.cache(new ValueTime(nanos));
-    }
-
-    /**
-     * Get or create a time value for the given time.
-     *
-     * @param timeZone time zone, or {@code null} for default
-     * @param time the time
-     * @return the value
-     */
-    public static ValueTime get(TimeZone timeZone, Time time) {
-        long ms = time.getTime();
-        return fromNanos(DateTimeUtils.nanosFromLocalMillis(
-                ms + (timeZone == null ? DateTimeUtils.getTimeZoneOffsetMillis(ms) : timeZone.getOffset(ms))));
     }
 
     /**
      * Parse a string to a ValueTime.
      *
      * @param s the string to parse
+     * @param provider
+     *            the cast information provider, may be {@code null} for
+     *            literals without time zone
      * @return the time
      */
-    public static ValueTime parse(String s) {
+    public static ValueTime parse(String s, CastDataProvider provider) {
         try {
-            return fromNanos(DateTimeUtils.parseTimeNanos(s, 0, s.length()));
+            return (ValueTime) DateTimeUtils.parseTime(s, provider, false);
         } catch (Exception e) {
             throw DbException.get(ErrorCode.INVALID_DATETIME_CONSTANT_2,
                     e, "TIME", s);
@@ -108,11 +104,6 @@ public class ValueTime extends Value {
     }
 
     @Override
-    public Time getTime(TimeZone timeZone) {
-        return new Time(DateTimeUtils.getMillis(timeZone, DateTimeUtils.EPOCH_DATE_VALUE, nanos));
-    }
-
-    @Override
     public TypeInfo getType() {
         return TypeInfo.TYPE_TIME;
     }
@@ -124,38 +115,12 @@ public class ValueTime extends Value {
 
     @Override
     public String getString() {
-        StringBuilder buff = new StringBuilder(MAXIMUM_PRECISION);
-        DateTimeUtils.appendTime(buff, nanos);
-        return buff.toString();
+        return DateTimeUtils.appendTime(new StringBuilder(MAXIMUM_PRECISION), nanos).toString();
     }
 
     @Override
-    public StringBuilder getSQL(StringBuilder builder) {
-        builder.append("TIME '");
-        DateTimeUtils.appendTime(builder, nanos);
-        return builder.append('\'');
-    }
-
-    @Override
-    public boolean checkPrecision(long precision) {
-        // TIME data type does not have precision parameter
-        return true;
-    }
-
-    @Override
-    public Value convertScale(boolean onlyToSmallerScale, int targetScale) {
-        if (targetScale >= MAXIMUM_SCALE) {
-            return this;
-        }
-        if (targetScale < 0) {
-            throw DbException.getInvalidValueException("scale", targetScale);
-        }
-        long n = nanos;
-        long n2 = DateTimeUtils.convertScale(n, targetScale, DateTimeUtils.NANOS_PER_DAY);
-        if (n2 == n) {
-            return this;
-        }
-        return fromNanos(n2);
+    public StringBuilder getSQL(StringBuilder builder, int sqlFlags) {
+        return DateTimeUtils.appendTime(builder.append("TIME '"), nanos).append('\'');
     }
 
     @Override
@@ -165,10 +130,7 @@ public class ValueTime extends Value {
 
     @Override
     public boolean equals(Object other) {
-        if (this == other) {
-            return true;
-        }
-        return other instanceof ValueTime && nanos == (((ValueTime) other).nanos);
+        return this == other || other instanceof ValueTime && nanos == ((ValueTime) other).nanos;
     }
 
     @Override
@@ -177,32 +139,14 @@ public class ValueTime extends Value {
     }
 
     @Override
-    public Object getObject() {
-        return getTime(null);
-    }
-
-    @Override
-    public void set(PreparedStatement prep, int parameterIndex) throws SQLException {
-        if (JSR310.PRESENT) {
-            try {
-                prep.setObject(parameterIndex, JSR310Utils.valueToLocalTime(this), Types.TIME);
-                return;
-            } catch (SQLException ignore) {
-                // Nothing to do
-            }
-        }
-        prep.setTime(parameterIndex, getTime(null));
-    }
-
-    @Override
     public Value add(Value v) {
-        ValueTime t = (ValueTime) v.convertTo(Value.TIME);
+        ValueTime t = (ValueTime) v;
         return ValueTime.fromNanos(nanos + t.getNanos());
     }
 
     @Override
     public Value subtract(Value v) {
-        ValueTime t = (ValueTime) v.convertTo(Value.TIME);
+        ValueTime t = (ValueTime) v;
         return ValueTime.fromNanos(nanos - t.getNanos());
     }
 
@@ -212,7 +156,7 @@ public class ValueTime extends Value {
     }
 
     @Override
-    public Value divide(Value v) {
+    public Value divide(Value v, TypeInfo quotientType) {
         return ValueTime.fromNanos((long) (nanos / v.getDouble()));
     }
 

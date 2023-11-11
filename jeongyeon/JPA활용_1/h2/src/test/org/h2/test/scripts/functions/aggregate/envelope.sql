@@ -1,4 +1,4 @@
--- Copyright 2004-2019 H2 Group. Multiple-Licensed under the MPL 2.0,
+-- Copyright 2004-2023 H2 Group. Multiple-Licensed under the MPL 2.0,
 -- and the EPL 1.0 (https://h2database.com/html/license.html).
 -- Initial Developer: H2 Group
 --
@@ -56,7 +56,7 @@ SELECT ENVELOPE(V) FROM TEST;
 >> POLYGON ((-1.0000000001 1, -1.0000000001 2, 3 2, 3 1, -1.0000000001 1))
 
 TRUNCATE TABLE TEST;
-> ok
+> update count: 5
 
 -- Without index
 SELECT ENVELOPE(N) FROM (SELECT V AS N FROM TEST);
@@ -88,11 +88,10 @@ SELECT ENVELOPE(V) FROM TEST;
 >> POLYGON ((68 78, 68 99951, 99903 99951, 99903 78, 68 78))
 
 SELECT ESTIMATED_ENVELOPE('TEST', 'V');
-#+mvStore#>> POLYGON ((68 78, 68 99951, 99903 99951, 99903 78, 68 78))
-#-mvStore#>> null
+>> POLYGON ((68 78, 68 99951, 99903 99951, 99903 78, 68 78))
 
 TRUNCATE TABLE TEST;
-> ok
+> update count: 1000
 
 @reconnect off
 
