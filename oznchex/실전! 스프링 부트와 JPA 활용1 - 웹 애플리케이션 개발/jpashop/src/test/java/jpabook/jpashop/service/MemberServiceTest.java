@@ -30,7 +30,7 @@ public class MemberServiceTest {
         member.setName("kim");
 
         // when
-        Long savedId = memberService.join(member
+        Long savedId = memberService.join(member);
 
         // then
         em.flush();
