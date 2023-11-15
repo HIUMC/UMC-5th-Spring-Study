@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="ProjectModuleManager">
+    <modules>
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/jpashop.main.iml" filepath="$PROJECT_DIR$/.idea/modules/jpashop.main.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/실전_스프링부트와_JPA활용1.iml" filepath="$PROJECT_DIR$/.idea/실전_스프링부트와_JPA활용1.iml" />
+    </modules>
+  </component>
+</project>
