@@ -62,6 +62,23 @@
     
 - `@DiscriminatorColumn(name = "dtype")` : 부모 클래스에서 사용하고 dtype이라는 컬럼을 생성해 상속받는 클래스들의 키를 저장
 - `@DiscriminatorValue("A")` : 자식 클래스에서 사용하고 dtype에 들어가는 값으로 자식 클래스들을 구별하는 데에 쓰임
+- 
+
+---
+
+- OrderItem의 외부 직접 생성을 막아주는 2가지 방법 (1방법 추천)
+
+```java
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
+public class OrderItem {......}
+```
+
+```java
+public class OrderItem {....
+	protected OrderItem() {}.....}
+```
+
+이러면 구현한 생성 메서드만을 통해서 구현할 수 있다
 
 ## 영속화
 
@@ -115,6 +132,9 @@
     
     `@Transactional(readOnly = true)` : 읽기만 가능(쓰기 불가) → 효율 ↑
     
+
+## Test 관련
+
 - **test에서 memory DB 사용법**
     
     application.yml을 main과 따로 설정하는게 좋다. 
@@ -124,7 +144,7 @@
     or → 아무것도 안써도 ok, b/c 스프링은 본래 메모리 작동 
     
 
-## Test 관련
+---
 
 ```java
 @RunWith(SpringRunner.class)
@@ -148,3 +168,177 @@ public class MemberServiceTest {
         fail("예외가 발생해야 한다.");
     }
 ```
+
+## JPA에서 동적 쿼리를 처리하는 방법
+
+- JPQL로 처리 ( → 복잡 ⇒ 실무 사용 X)
+- JPA Criteria로 처리 ( → 복잡 ⇒ 실무 사용 X)
+- 
+
+## 기본키 복합키 외래키
+
+- **단순 기본키**
+    
+    ```java
+    @Id @GeneratedValue
+        @Column(name = "HID")
+        private Long id;
+    ```
+    
+- **복합키**
+    
+    `Hotel (HID, RoomNum)` 을 구현한다고 가정
+    
+    ---
+    
+    1. `@Embeddable` 이용
+        
+        ```java
+        @Embeddable
+        class HotelRoomId implements Serializable {
+            @Column(name = "HID")
+            private Long id;
+        
+            @Column(name = "RoomNum")
+            private String roomNum;
+        }
+        ```
+        
+        ```java
+        @EmbeddedId
+        private HotelRoomId hotelRoomId;
+        ```
+        
+    2. `@IdClass` 이용
+        
+        ```java
+        class HotelRoomId implements Serializable {
+            private Long id;
+        
+            private String roomNum;
+        }
+        ```
+        
+        ```java
+        @Entity
+        @IdClass(HotelRoomId.class)
+        class HotelRoom {
+            @Id @Column(name = "RoomNum")
+            private String roomNum;
+        
+            @Id @Column(name = "HID")
+            private Long id;
+        }
+        ```
+        
+    
+- **외래키를 기본키로**
+    
+    `HotelRoomId (HID(FK,PK), RoomNum)`을 구현한다고 가정
+    
+    ```java
+    @Embeddable
+    class HotelRoomId implements Serializable {
+        private Long id;
+        private String roomNum;
+    }
+    ```
+    
+    ```java
+    @EmbeddedId
+    private HotelRoomId hotelRoomId;
+    
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "HID")
+    private Hotel hotel;
+    ```
+    
+    이와 같이 먼저 복합키 설정을 해준 후 owner class에서 외래키 설정을 해준다
+    
+
+## 톰캣!
+
+톰캣은 단순한 정적 Web-Server가 아니며, **Web-Server와 함께 Servlet-Container를 합쳐놓은 미들웨어라는 점**이다. 그리고 이 **톰캣의 Server-Container에 스프링의 DispatchServlet이 배포되어 실행된다.**
+
+스프링 프레임워크의 중심에 있는 DispatcherServlet이 톰캣의 Servlet-Continer에 배포되어 돌아가는 Servlet중 하나일 뿐이라는 것
+
+DispatcherServlet은 client에서 요청이 들어오면 요청을 처리할 적당한 controller와 메서드를 찾아 요청을 위임한다.
+
+![DispatcherServlet의 동작 과정](SPRING%20BOOT%20&%20JPA%20%E1%84%92%E1%85%AA%E1%86%AF%E1%84%8B%E1%85%AD%E1%86%BC%20057c86b5a1d24c5694351995711a71bf/Untitled%201.png)
+
+DispatcherServlet의 동작 과정
+
+⇒ 스프링 부트가 자동으로 톰캣을 실행시키고 DispatcherServlet을 배포한다
+
+> **톰캣 ⊃ Web-Server, {Servlet-Container ⊃ DispatchServlet** (= 스프링 프레임워크의 중심)}
+> 
+
+## 변경 감지와 병합(merge)
+
+- 준영속 엔티티
+    
+    PersistenceContext가 관리하지 않는 엔티티
+    
+    ```java
+    Book book = new Book();
+    book.setId(form.getId());
+    ```
+    
+    Book 개체는 이미 DB에 저장되어 식별자가 존재한다. 
+    위 코드와 같이 임의로 만들어낸 엔티티(기존 식별자가 있) 가 준영속 엔티티다.
+    
+    ---
+    
+- 준영속 엔티티를 수정하는 2가지 방법
+    - 변경 감지 기능 사용
+        
+        ```java
+        @Transactional
+        void update(Item itemParam) { //itemParam: 파리미터로 넘어온 준영속 상태의 엔티티
+         Item findItem = em.find(Item.class, itemParam.getId()); //같은 엔티티를 조회한다.
+         findItem.setPrice(itemParam.getPrice()); //데이터를 수정한다. }
+        ```
+        
+        !!!→ `@Transactional`을 통해 commit 시점에 변경을 감지
+        
+    - 병합(merge) 기능 사용
+        
+        = 준영속 상태의 엔티티를 영속 상태로 변경하는 것
+        
+        ```java
+        @Transactional
+        void update(Item itemParam) { //itemParam: 파리미터로 넘어온 준영속 상태의 엔티티
+         Item mergeItem = em.merge(itemParam); }
+        ```
+        
+        ![1. merge()를 실행
+        2. 준영속 엔티티의 식별자 값으로 1차 캐시에서 엔티티를 조회
+        3. 조회한 영속 엔티티에 member 엔티티 값을 채운다
+        4. 영속 상태인 mergeMember가 반환](SPRING%20BOOT%20&%20JPA%20%E1%84%92%E1%85%AA%E1%86%AF%E1%84%8B%E1%85%AD%E1%86%BC%20057c86b5a1d24c5694351995711a71bf/Untitled%202.png)
+        
+        1. merge()를 실행
+        2. 준영속 엔티티의 식별자 값으로 1차 캐시에서 엔티티를 조회
+        3. 조회한 영속 엔티티에 member 엔티티 값을 채운다
+        4. 영속 상태인 mergeMember가 반환
+        
+        > 병합은 모든 속성이 병합된다. ⇒ 데이터가 없으면 null로 바뀔 위험 있음
+        > 
+        
+    
+    <aside>
+    💡 모범 사용 예시
+    
+    ```java
+    public void save(Item item) {
+            if (item.getId() == null) {
+                em.persist(item);        
+            }else {
+                em.merge(item); }}
+    ```
+    
+    그런데 이는 item의 식별키가 @GeneratedValue를 통해 자동생성되서 persist 수행이 가능한 것
+    
+    </aside>
+    
+
+api 만들 때는 절대 엔티티를 넘기면 안된다
