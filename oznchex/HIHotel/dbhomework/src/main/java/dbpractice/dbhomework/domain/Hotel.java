@@ -22,5 +22,7 @@ public class Hotel {
 
     private String address;
 
-    private String phone_number;
+    private String phoneNumber;
+
+    // @OneToMany MappedBy 필요 - List<>
 }

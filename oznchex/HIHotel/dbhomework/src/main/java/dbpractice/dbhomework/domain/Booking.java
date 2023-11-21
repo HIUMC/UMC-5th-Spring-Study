@@ -12,7 +12,6 @@ import static javax.persistence.FetchType.LAZY;
 @Getter
 @Setter
 public class Booking {
-
     @Id
     @GeneratedValue
     @Column(name = "booking_id")
