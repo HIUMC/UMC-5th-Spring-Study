@@ -19,6 +19,6 @@ public class HotelRoom {
     @JoinColumn(name = "hotel_id")
     private Hotel hotel;
 
-    private String roomnumber;
+    private String roomNumber;
     private int price;
 }
