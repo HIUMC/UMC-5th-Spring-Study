@@ -3,13 +3,14 @@ package com.example.hihotel.domain;
 import lombok.Getter;
 
 import javax.persistence.*;
+import java.util.Date;
 
 @Entity
 @Getter
 public class Booking {
 
-    @EmbeddedId
-    private BookingId bookingId;
+    @Id @GeneratedValue
+    private Long bookingId;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "cid", insertable = false, updatable = false)
@@ -17,12 +18,13 @@ public class Booking {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "hid", referencedColumnName = "hid", insertable = false, updatable = false)
+    private Hotel hotel;
+
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "roomnum", referencedColumnName = "roomnum", insertable = false, updatable = false)
     private HotelRoom hotelRoom;
 
-    private String checkInDate;
+    private Date checkInDate;
 
-    private String checkOutDate;
+    private Date checkOutDate;
 }
-
-

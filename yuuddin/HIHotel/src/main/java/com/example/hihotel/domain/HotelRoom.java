@@ -10,13 +10,14 @@ import java.util.List;
 @Getter
 public class HotelRoom {
 
-    @EmbeddedId
-    private HotelRoomId hotelRoomId;
+    @Id @GeneratedValue
+    private Long hotelRoomId;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "hid", insertable = false, updatable = false)
     private Hotel hotel;
-//hotelRoomId.gethid/.getrommnum
+
+    private String roomNum;
 
     private int price;
 
