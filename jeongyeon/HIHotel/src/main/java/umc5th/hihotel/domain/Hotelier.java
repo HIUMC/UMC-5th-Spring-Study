@@ -7,10 +7,11 @@ import static jakarta.persistence.FetchType.LAZY;
 @Entity
 public class Hotelier {
 
-    @Id
-    @GeneratedValue
+    @Id @GeneratedValue
     @Column(name = "hotelier_id")
-    private String id;
+    private Long id;
+
+    private String hlid;
 
     private String name;
 

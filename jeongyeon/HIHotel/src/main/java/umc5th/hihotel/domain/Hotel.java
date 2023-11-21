@@ -10,7 +10,9 @@ public class Hotel {
 
     @Id @GeneratedValue
     @Column(name = "hotel_id")
-    private String id;
+    private Long id;
+
+    private String hid;
 
     private String name;
 

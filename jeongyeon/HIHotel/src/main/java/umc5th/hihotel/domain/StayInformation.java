@@ -4,6 +4,8 @@ import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
 
+import java.util.Date;
+
 import static jakarta.persistence.FetchType.LAZY;
 
 @Entity
@@ -22,18 +24,18 @@ public class StayInformation {
     @JoinColumn(name = "customer_id")
     private Customer customer;
 
-    private String checkin;
+    private Date checkin;
 
-    private String checkout;
+    private Date checkout;
 
-    public static StayInformation createStayInformation(HotelRoom hotelroom, String checkin, String checkout) {
+/*    public static StayInformation createStayInformation(HotelRoom hotelroom, Date checkin, Date checkout) {
         StayInformation stayInformation = new StayInformation();
         stayInformation.setHotelRoom(hotelroom);
         stayInformation.setCheckin(checkin);
         stayInformation.setCheckout(checkout);
 
         return stayInformation;
-    }
+    }*/
 
 
 }

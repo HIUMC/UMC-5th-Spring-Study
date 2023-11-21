@@ -1,24 +1,22 @@
 package umc5th.hihotel.domain;
 
 
-import jakarta.persistence.Entity;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.Id;
-import jakarta.persistence.OneToMany;
+import jakarta.persistence.*;
 
 import java.util.ArrayList;
 import java.util.List;
 
 @Entity
 public class Customer {
-    @Id
-    @GeneratedValue
-    private String id;
+    @Id @GeneratedValue
+    @Column(name = "customer_id")
+    private Long id;
 
+    private String cid;
 
     private String name;
 
-    private String num;
+    private String phone;
 
     @OneToMany(mappedBy = "customer")
     private List<Booking> bookings = new ArrayList<>();

@@ -10,7 +10,9 @@ public class HotelRoom {
 
     @Id @GeneratedValue
     @Column(name = "hotelroom_id")
-    private int room_num;
+    private Long id;
+
+    private String roomNum;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "hotel_id")
