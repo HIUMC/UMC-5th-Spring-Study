@@ -19,14 +19,13 @@ public class MemberController {
     private final MemberService memberService;
 
     @GetMapping(value = "/members/new")
-    public String createForom(Model model) {
+    public String createForm(Model model) {
         model.addAttribute("memberForm", new MemberForm());
         return "members/createMemberForm";
     }
 
     @PostMapping("/members/new")
     public String create(@Valid MemberForm form, BindingResult result) {
-
 
         if (result.hasErrors()) {
             return "members/createMemberForm";
