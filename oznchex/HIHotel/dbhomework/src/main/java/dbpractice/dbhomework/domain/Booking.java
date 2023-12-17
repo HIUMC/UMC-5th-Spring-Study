@@ -31,4 +31,17 @@ public class Booking {
 
     private Date bookingcheckindate;
     private Date bookingcheckoutdate;
+
+    public Booking(Long id) {
+        this.id = id;
+    }
+
+    public Booking(Long id, Customer customer, Hotel hotel, HotelRoom hotelroom, Date bookingcheckindate, Date bookingcheckoutdate) {
+        this.id = id;
+        this.customer = customer;
+        this.hotel = hotel;
+        this.hotelroom = hotelroom;
+        this.bookingcheckindate = bookingcheckindate;
+        this.bookingcheckoutdate = bookingcheckoutdate;
+    }
 }
