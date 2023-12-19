@@ -1,18 +1,17 @@
 package hello.jpa;
 
 import javax.persistence.*;
-import java.util.ArrayList;
-import java.util.List;
 
 @Entity
-public class Product {
-    @Id
-    @GeneratedValue
-    private Long id;
-    private String name;
+@Inheritance(strategy = InheritanceType.SINGLE_TABLE)
+@DiscriminatorColumn
+public abstract class Item {
 
-    @OneToMany(mappedBy = "product")
-    private List<MemberProduct> memberProducts = new ArrayList<>();
+    @Id @GeneratedValue
+    private Long id;
+
+    private String name;
+    private int price;
 
     public Long getId() {
         return id;
@@ -28,5 +27,13 @@ public class Product {
 
     public void setName(String name) {
         this.name = name;
+    }
+
+    public int getPrice() {
+        return price;
+    }
+
+    public void setPrice(int price) {
+        this.price = price;
     }
 }
